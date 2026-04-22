@@ -1,0 +1,432 @@
+<div class="shell">
+  <main class="page">
+    <section class="hero">
+      <div class="hero-top">
+        <span class="eyebrow">Offline first</span>
+        <span class="sync-chip">{{ syncTargetLabel() }}</span>
+      </div>
+
+      <div class="hero-copy">
+        <h1>Tus finanzas, incluso cuando no tienes red.</h1>
+        <p>
+          Registra gastos, ingresos y pagos desde el celular o la compu, pega texto de notificaciones
+          o de WhatsApp, y sincroniza despues con Google Sheets o Firebase.
+        </p>
+      </div>
+
+      <div class="hero-grid">
+        <article class="metric balance">
+          <span>Balance de {{ currentMonthLabel() }}</span>
+          <strong>{{ totals().balance | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</strong>
+          <span class="mini-note">Ingresos menos egresos del mes actual</span>
+        </article>
+
+        <article class="metric">
+          <span>Ingresos</span>
+          <strong>{{ totals().income | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</strong>
+          <span class="mini-note">Flujo positivo acumulado</span>
+        </article>
+
+        <article class="metric">
+          <span>Gastos</span>
+          <strong>{{ totals().expense | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</strong>
+          <span class="mini-note">Salidas registradas</span>
+        </article>
+
+        <article class="metric">
+          <span>Pendientes</span>
+          <strong>{{ totals().pending }}</strong>
+          <span class="mini-note">Movimientos aun no sincronizados</span>
+        </article>
+      </div>
+
+      <div class="status-bar">
+        <div class="row-inline">
+          <span class="status" [class.offline]="!online()">
+            {{ online() ? 'Con conexion' : 'Sin conexion' }}
+          </span>
+          <span class="muted">
+            {{ syncState().lastMessage }}
+          </span>
+        </div>
+
+        <div class="actions">
+          <button class="ghost-button" type="button" (click)="exportCsv()">Exportar CSV</button>
+          <button class="secondary-button" type="button" (click)="syncNow()">Sincronizar ahora</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="workspace">
+      <div class="panel-stack">
+        <section class="panel">
+          <div class="section-header">
+            <div>
+              <p class="section-label">Nuevo movimiento</p>
+              <h2 class="section-title">Carga manual</h2>
+            </div>
+            <div class="toggle">
+              @for (mode of quickModes; track mode.value) {
+                <button
+                  type="button"
+                  [class.active]="form().kind === mode.value"
+                  (click)="updateForm('kind', mode.value)"
+                >
+                  {{ mode.label }}
+                </button>
+              }
+            </div>
+          </div>
+
+          <form class="panel-stack" (ngSubmit)="submitTransaction()">
+            <div class="grid-2">
+              <div class="field">
+                <label for="title">Titulo</label>
+                <input
+                  id="title"
+                  name="title"
+                  [ngModel]="form().title"
+                  (ngModelChange)="updateForm('title', $event)"
+                  placeholder="Ej. Supermercado, sueldo, taxi"
+                  required
+                />
+              </div>
+
+              <div class="field">
+                <label for="amount">Monto</label>
+                <input
+                  id="amount"
+                  name="amount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  [ngModel]="form().amount"
+                  (ngModelChange)="updateForm('amount', +$event)"
+                  required
+                />
+              </div>
+            </div>
+
+            <div class="grid-2">
+              <div class="field">
+                <label for="category">Categoria</label>
+                <select
+                  id="category"
+                  name="category"
+                  [ngModel]="form().category"
+                  (ngModelChange)="updateForm('category', $event)"
+                >
+                  @for (category of categories; track category) {
+                    <option [value]="category">{{ category }}</option>
+                  }
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="account">Cuenta o medio</label>
+                <select
+                  id="account"
+                  name="account"
+                  [ngModel]="form().account"
+                  (ngModelChange)="updateForm('account', $event)"
+                >
+                  @for (account of accountOptions; track account) {
+                    <option [value]="account">{{ account }}</option>
+                  }
+                </select>
+              </div>
+            </div>
+
+            <div class="grid-2">
+              <div class="field">
+                <label for="date">Fecha</label>
+                <input
+                  id="date"
+                  name="date"
+                  type="date"
+                  [ngModel]="form().date"
+                  (ngModelChange)="updateForm('date', $event)"
+                />
+              </div>
+
+              <div class="field">
+                <label for="source">Origen</label>
+                <select
+                  id="source"
+                  name="source"
+                  [ngModel]="form().source"
+                  (ngModelChange)="updateForm('source', $event)"
+                >
+                  <option value="manual">Manual</option>
+                  <option value="notification">Notificacion</option>
+                  <option value="whatsapp">WhatsApp</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="note">Nota</label>
+              <textarea
+                id="note"
+                name="note"
+                [ngModel]="form().note"
+                (ngModelChange)="updateForm('note', $event)"
+                placeholder="Detalle opcional, numero de cuota, comentario, recordatorio"
+              ></textarea>
+            </div>
+
+            <div class="actions">
+              <button class="primary-button" type="submit">Guardar movimiento</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel">
+          <div class="section-header">
+            <div>
+              <p class="section-label">Captura rapida</p>
+              <h2 class="section-title">Pegar texto de notificacion o WhatsApp</h2>
+            </div>
+          </div>
+
+          <div class="panel-stack">
+            <div class="field">
+              <label for="capture">Texto detectado</label>
+              <textarea
+                id="capture"
+                name="capture"
+                [ngModel]="captureText()"
+                (ngModelChange)="captureText.set($event)"
+                placeholder="Ej. Se realizo el pago en Rappi por S/ 39.90 con tu tarjeta..."
+              ></textarea>
+            </div>
+
+            <div class="actions">
+              <button class="secondary-button" type="button" (click)="parseCapture()">Interpretar texto</button>
+            </div>
+
+            @if (captureFeedback()) {
+              <div class="info-line">{{ captureFeedback() }}</div>
+            }
+
+            <p class="help">
+              En iPhone y WhatsApp no existe una integracion local directa desde el navegador sin permisos
+              especiales. Este bloque te deja capturar el texto rapidamente y convertirlo en un movimiento.
+            </p>
+          </div>
+        </section>
+      </div>
+
+      <div class="panel-stack">
+        <section class="panel">
+          <div class="section-header">
+            <div>
+              <p class="section-label">Sincronizacion</p>
+              <h2 class="section-title">Destino de datos</h2>
+            </div>
+          </div>
+
+          <div class="panel-stack">
+            <div class="field">
+              <label for="owner">Nombre del tablero</label>
+              <input
+                id="owner"
+                name="owner"
+                [ngModel]="settings().owner"
+                (ngModelChange)="updateSetting('owner', $event)"
+              />
+            </div>
+
+            <div class="grid-2">
+              <div class="field">
+                <label for="currency">Moneda</label>
+                <select
+                  id="currency"
+                  name="currency"
+                  [ngModel]="settings().currency"
+                  (ngModelChange)="updateSetting('currency', $event)"
+                >
+                  <option value="PEN">PEN</option>
+                  <option value="USD">USD</option>
+                  <option value="EUR">EUR</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label>Modo de sync</label>
+                <div class="segmented">
+                  <button
+                    type="button"
+                    [class.active]="settings().syncMode === 'local'"
+                    (click)="updateSetting('syncMode', 'local')"
+                  >
+                    Local
+                  </button>
+                  <button
+                    type="button"
+                    [class.active]="settings().syncMode === 'sheet'"
+                    (click)="updateSetting('syncMode', 'sheet')"
+                  >
+                    Sheets
+                  </button>
+                  <button
+                    type="button"
+                    [class.active]="settings().syncMode === 'firebase'"
+                    (click)="updateSetting('syncMode', 'firebase')"
+                  >
+                    Firebase
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="sheetUrl">Webhook de Google Sheets</label>
+              <input
+                id="sheetUrl"
+                name="sheetUrl"
+                [ngModel]="settings().sheetWebhookUrl"
+                (ngModelChange)="updateSetting('sheetWebhookUrl', $event)"
+                placeholder="https://script.google.com/macros/s/..."
+              />
+            </div>
+
+            <div class="field">
+              <label for="firebaseUrl">Endpoint Firebase</label>
+              <input
+                id="firebaseUrl"
+                name="firebaseUrl"
+                [ngModel]="settings().firebaseWebhookUrl"
+                (ngModelChange)="updateSetting('firebaseWebhookUrl', $event)"
+                placeholder="https://us-central1-tu-proyecto.cloudfunctions.net/..."
+              />
+            </div>
+
+            <div class="toggle-group">
+              <span class="muted">Auto sync al volver la red</span>
+              <div class="toggle">
+                <button
+                  type="button"
+                  [class.active]="settings().autoSync"
+                  (click)="updateSetting('autoSync', true)"
+                >
+                  Activo
+                </button>
+                <button
+                  type="button"
+                  [class.active]="!settings().autoSync"
+                  (click)="updateSetting('autoSync', false)"
+                >
+                  Pausado
+                </button>
+              </div>
+            </div>
+
+            @if (syncState().lastMessage.includes('Falta') || syncState().lastMessage.includes('respondio')) {
+              <div class="info-line error">{{ syncState().lastMessage }}</div>
+            } @else {
+              <div class="info-line">{{ syncState().lastMessage }}</div>
+            }
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="section-header">
+            <div>
+              <p class="section-label">Analitica</p>
+              <h2 class="section-title">Categorias del mes</h2>
+            </div>
+          </div>
+
+          @if (categoryBreakdown().length) {
+            <div class="category-list">
+              @for (item of categoryBreakdown(); track item.category) {
+                <article class="category-item">
+                  <div class="row-inline">
+                    <strong>{{ item.category }}</strong>
+                    <span>{{ item.total | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</span>
+                  </div>
+                  <div class="bar">
+                    <span [style.width.%]="(item.total / totals().expense) * 100"></span>
+                  </div>
+                </article>
+              }
+            </div>
+          } @else {
+            <div class="empty">
+              <p>Todavia no hay suficientes egresos este mes para mostrar categorias.</p>
+            </div>
+          }
+        </section>
+
+        <section class="panel">
+          <div class="section-header">
+            <div>
+              <p class="section-label">Movimientos</p>
+              <h2 class="section-title">Ultimos registros</h2>
+            </div>
+          </div>
+
+          @if (recentTransactions().length) {
+            <div class="transaction-list">
+              @for (item of recentTransactions(); track item.id) {
+                <article class="list-item">
+                  <div class="item-head">
+                    <div>
+                      <strong>{{ item.title }}</strong>
+                      <p>{{ item.category }} · {{ item.account }} · {{ item.date | date: 'dd MMM' : '' : 'es-PE' }}</p>
+                    </div>
+                    <div class="row-inline">
+                      <span class="pill" [class.expense]="item.kind === 'expense'" [class.income]="item.kind === 'income'">
+                        {{ item.kind === 'expense' ? 'Gasto' : 'Ingreso' }}
+                      </span>
+                      <span class="amount" [class.expense]="item.kind === 'expense'" [class.income]="item.kind === 'income'">
+                        {{ item.kind === 'expense' ? '-' : '+' }}
+                        {{ item.amount | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div class="row-inline">
+                    <span class="pill" [class.pending]="item.syncStatus === 'pending'" [class.synced]="item.syncStatus === 'synced'" [class.failed]="item.syncStatus === 'failed'">
+                      {{ item.syncStatus }}
+                    </span>
+                    <span class="muted">{{ item.source }}</span>
+                  </div>
+
+                  @if (item.note) {
+                    <p>{{ item.note }}</p>
+                  }
+
+                  <div class="item-actions">
+                    <button type="button" (click)="removeTransaction(item.id)">Eliminar</button>
+                  </div>
+                </article>
+              }
+            </div>
+          } @else {
+            <div class="empty">
+              <p>No hay movimientos todavia.</p>
+            </div>
+          }
+        </section>
+
+        <section class="panel notes">
+          <div class="section-header">
+            <div>
+              <p class="section-label">Implementacion real</p>
+              <h2 class="section-title">Como conectarlo con tu flujo</h2>
+            </div>
+          </div>
+
+          <ul class="bullet">
+            <li>Google Sheets: crea un Apps Script web app que reciba el JSON y lo agregue a tu hoja.</li>
+            <li>Firebase: publica esta app en Hosting y manda la cola a una Cloud Function o Firestore.</li>
+            <li>iPhone: para automatizar notificaciones reales, lo ideal es Atajos + webhook o una API intermedia.</li>
+            <li>WhatsApp: para lectura automatica necesitas WhatsApp Business API o un puente backend; no se puede hacer solo desde una web local.</li>
+          </ul>
+        </section>
+      </div>
+    </section>
+  </main>
+</div>
