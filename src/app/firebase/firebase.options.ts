@@ -9,12 +9,12 @@ export interface FirebaseClientOptions {
 }
 
 export const firebaseOptions: FirebaseClientOptions = {
-  apiKey: '',
+  apiKey: 'AIzaSyA66GtHCXfEviinPbtwK7OzRN_qi0gVxVs',
   authDomain: 'app-gastospe.firebaseapp.com',
   projectId: 'app-gastospe',
   storageBucket: 'app-gastospe.firebasestorage.app',
   messagingSenderId: '301238787233',
-  appId: '',
+  appId: '1:301238787233:web:ab9e79f5a4d09f346864e0',
   functionsRegion: 'us-central1',
 };
 
