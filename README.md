@@ -40,11 +40,16 @@ La configuracion Web App ya esta cargada en [src/app/firebase/firebase.options.t
 
 Para que el login funcione de punta a punta, revisa en Firebase Console:
 
-1. `Authentication > Sign-in method > Google` habilitado.
-2. `Authentication > Settings > Authorized domains` con:
+1. `Authentication` ya esta inicializado en el proyecto.
+2. `Identity Platform / Authentication > Providers > Google` debe quedar configurado.
+3. En dominios autorizados agrega:
    - `localhost`
    - `app-gastospe.web.app`
    - cualquier dominio custom que uses despues
+4. En el cliente OAuth Web de Google usa como redirect URI:
+   - `https://app-gastospe.firebaseapp.com/__/auth/handler`
+
+Importante: en este proyecto el backend ya quedo inicializado con `Identity Platform`, asi que si Google todavia no responde, falta terminar la configuracion del proveedor Google en consola.
 
 ## Arquitectura que queda en el repo
 
@@ -116,13 +121,16 @@ Pasos:
    - `CONFIG.firebaseUid`
    - `CONFIG.owner`
    - `CONFIG.gmailQuery`
-4. Ejecutar `createHourlyTrigger()`.
-5. Probar `ingestYapePlinEmails()` manualmente una vez.
+4. Ejecutar `previewRecentMatches()` para ver que esta detectando sin enviar nada.
+5. Ejecutar `runParserSelfTest()` para una verificacion rapida del parser.
+6. Ejecutar `ingestBcpFinanceEmails()` manualmente una vez.
+7. Ejecutar `createHourlyTrigger()`.
 
 El script:
 
-- busca correos recientes;
-- detecta monto, fecha y contexto;
+- busca correos recientes de BCP;
+- detecta compras, plines y yapeos;
+- ignora compras rechazadas y correos de configuracion;
 - usa `gmail-${messageId}` como ID estable para evitar duplicados;
 - envia los movimientos a Firebase por HTTPS.
 
@@ -142,6 +150,10 @@ Para automatizar eso de verdad necesitas un puente:
 
 - iPhone: Atajos + webhook o una automatizacion propia.
 - WhatsApp: WhatsApp Business Platform / Cloud API con webhook oficial.
+
+Guia practica:
+
+- [docs/telefono-y-whatsapp.md](docs/telefono-y-whatsapp.md)
 
 Por eso esta version deja resuelto el flujo practico y estable:
 

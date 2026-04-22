@@ -132,7 +132,7 @@ export class FirebaseAuthService {
 
     switch (code) {
       case 'auth/configuration-not-found':
-        return `Firebase Auth respondio configuration-not-found. Habilita Google en Authentication > Sign-in method y revisa que ${currentDomain || 'tu dominio actual'} figure en dominios autorizados.`;
+        return `Firebase Auth respondio configuration-not-found. El proyecto ya tiene Authentication inicializado, pero falta configurar el proveedor Google en Identity Platform / Authentication > Providers > Google y dejar ${currentDomain || 'tu dominio actual'} en dominios autorizados.`;
       case 'auth/unauthorized-domain':
         return `El dominio ${currentDomain || 'actual'} no esta autorizado en Firebase Authentication. Agregalo en Authentication > Settings > Authorized domains.`;
       case 'auth/popup-closed-by-user':

@@ -8,8 +8,8 @@ import {
   SyncSettings,
   Transaction,
   TransactionDraft,
-  TransactionKind,
 } from '../models/finance.models';
+import { parseTransactionText } from '../utils/transaction-parser';
 
 const TRANSACTIONS_KEY = 'gastospe.transactions.v2';
 const SETTINGS_KEY = 'gastospe.settings.v2';
@@ -183,39 +183,10 @@ export class FinanceStoreService {
     this.settings.update((current) => ({ ...current, ...patch }));
   }
 
-  parseCapturedText(rawText: string): ParsedCapture {
-    const normalized = rawText.trim();
-    const amount = this.extractAmount(normalized);
-    const lower = normalized.toLowerCase();
-    const kind: TransactionKind =
-      /(recibiste|ingreso|deposito|abono|te enviaron|transferencia recibida)/i.test(lower)
-        ? 'income'
-        : 'expense';
-
-    const category = this.inferCategory(lower, kind);
-    const account = /(yape|plin)/i.test(lower)
-      ? 'Yape/Plin'
-      : /(tarjeta|visa|mastercard|debito|credito)/i.test(lower)
-        ? 'Tarjeta'
-        : /(transferencia|bcp|interbank|bbva|scotiabank)/i.test(lower)
-          ? 'Transferencia'
-          : 'Otro';
-
-    return {
-      title: this.inferTitle(normalized, kind),
-      amount,
-      kind,
-      category,
-      account,
-      note: normalized,
-      source: /(gmail|correo|mail)/i.test(lower)
-        ? 'gmail'
-        : /(whatsapp|wsp)/i.test(lower)
-          ? 'whatsapp'
-          : 'notification',
-      date: new Date().toISOString().slice(0, 10),
-      rawText: normalized,
-    };
+  parseCapturedText(rawText: string): ParsedCapture | null {
+    return parseTransactionText(rawText, {
+      defaultDate: new Date().toISOString().slice(0, 10),
+    });
   }
 
   async syncPendingTransactions(): Promise<void> {
@@ -439,58 +410,6 @@ export class FinanceStoreService {
   private loadDeletedTransactionIds(): string[] {
     const raw = this.readJson<string[]>(DELETED_TRANSACTIONS_KEY);
     return Array.isArray(raw) ? raw.filter((item) => typeof item === 'string') : [];
-  }
-
-  private inferTitle(rawText: string, kind: TransactionKind): string {
-    const merchantMatch =
-      rawText.match(/(?:en|a|por)\s+([A-Za-z0-9 .&-]{3,40})/i) ??
-      rawText.match(/(?:compra|pago|abono|transferencia)\s+([A-Za-z0-9 .&-]{3,40})/i);
-
-    if (merchantMatch?.[1]) {
-      return merchantMatch[1].trim();
-    }
-
-    return kind === 'income' ? 'Ingreso detectado' : 'Gasto detectado';
-  }
-
-  private inferCategory(text: string, kind: TransactionKind): string {
-    if (kind === 'income') {
-      return 'Ingreso';
-    }
-
-    if (/(uber|bus|taxi|combustible|peaje)/i.test(text)) {
-      return 'Transporte';
-    }
-    if (/(farmacia|clinica|seguro|salud)/i.test(text)) {
-      return 'Salud';
-    }
-    if (/(luz|agua|internet|gas|telefono)/i.test(text)) {
-      return 'Servicios';
-    }
-    if (/(netflix|spotify|icloud|subscription|suscripcion)/i.test(text)) {
-      return 'Suscripciones';
-    }
-    if (/(restaurante|cafe|super|plaza vea|tottus|wong|metro|comida|almuerzo|menu)/i.test(text)) {
-      return 'Comida';
-    }
-    if (/(ripley|saga|zara|h&m|compra)/i.test(text)) {
-      return 'Compras';
-    }
-    return 'Otros';
-  }
-
-  private extractAmount(text: string): number | null {
-    const match = text.match(
-      /(?:s\/|pen|\$|usd)?\s?(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})|\d+(?:[.,]\d{1,2})?)/i,
-    );
-
-    if (!match) {
-      return null;
-    }
-
-    const normalized = match[1].replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(',', '.');
-    const amount = Number(normalized);
-    return Number.isFinite(amount) ? amount : null;
   }
 
   private escapeCsv(value: string): string {

@@ -168,6 +168,7 @@ export class App {
     'Comida',
     'Casa',
     'Transporte',
+    'Transferencias',
     'Suscripciones',
     'Salud',
     'Compras',
@@ -241,6 +242,14 @@ export class App {
     }
 
     const parsed = this.store.parseCapturedText(value);
+
+    if (!parsed) {
+      this.captureFeedback.set(
+        'Ese texto parece una alerta informativa o una operacion rechazada, asi que no se cargo como movimiento.',
+      );
+      return;
+    }
+
     this.form.set({
       kind: parsed.kind,
       title: parsed.title,
