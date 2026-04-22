@@ -3,17 +3,22 @@ import { FirebaseAuthService } from './firebase-auth.service';
 import { FirebaseTransactionsService } from './firebase-transactions.service';
 import {
   ParsedCapture,
+  SubscriptionDraft,
+  SubscriptionItem,
   SyncPayload,
   SyncResult,
   SyncSettings,
   Transaction,
   TransactionDraft,
+  UserProfile,
 } from '../models/finance.models';
 import { parseTransactionText } from '../utils/transaction-parser';
 
 const TRANSACTIONS_KEY = 'gastospe.transactions.v2';
 const SETTINGS_KEY = 'gastospe.settings.v2';
 const DELETED_TRANSACTIONS_KEY = 'gastospe.deleted-transactions.v1';
+const PROFILE_KEY = 'gastospe.profile.v1';
+const SUBSCRIPTIONS_KEY = 'gastospe.subscriptions.v1';
 
 type SyncState = {
   syncing: boolean;
@@ -35,6 +40,8 @@ export class FinanceStoreService {
   readonly transactions = signal<Transaction[]>(this.loadTransactions());
   readonly settings = signal<SyncSettings>(this.loadSettings());
   readonly deletedTransactionIds = signal<string[]>(this.loadDeletedTransactionIds());
+  readonly profile = signal<UserProfile>(this.loadProfile());
+  readonly subscriptions = signal<SubscriptionItem[]>(this.loadSubscriptions());
   readonly online = signal(this.resolveOnline());
   readonly syncState = signal<SyncState>({
     syncing: false,
@@ -62,6 +69,14 @@ export class FinanceStoreService {
 
     effect(() => {
       this.saveJson(DELETED_TRANSACTIONS_KEY, this.deletedTransactionIds());
+    });
+
+    effect(() => {
+      this.saveJson(PROFILE_KEY, this.profile());
+    });
+
+    effect(() => {
+      this.saveJson(SUBSCRIPTIONS_KEY, this.subscriptions());
     });
 
     if (typeof window !== 'undefined') {
@@ -152,6 +167,32 @@ export class FinanceStoreService {
     };
   }
 
+  defaultProfile(): UserProfile {
+    return {
+      fullName: '',
+      dni: '',
+      phone: '',
+      preferredView: 'overview',
+    };
+  }
+
+  createSubscriptionDraft(): SubscriptionDraft {
+    const nextMonth = new Date();
+    nextMonth.setMonth(nextMonth.getMonth() + 1);
+
+    return {
+      name: '',
+      amount: 0,
+      cycle: 'monthly',
+      nextBillingDate: nextMonth.toISOString().slice(0, 10),
+      provider: '',
+      category: 'Streaming',
+      status: 'active',
+      note: '',
+      autopay: true,
+    };
+  }
+
   addTransaction(draft: TransactionDraft): void {
     const transaction: Transaction = {
       ...draft,
@@ -185,6 +226,29 @@ export class FinanceStoreService {
 
   updateSettings(patch: Partial<SyncSettings>): void {
     this.settings.update((current) => ({ ...current, ...patch }));
+  }
+
+  updateProfile(patch: Partial<UserProfile>): void {
+    this.profile.update((current) => ({ ...current, ...patch }));
+  }
+
+  addSubscription(draft: SubscriptionDraft): void {
+    const subscription: SubscriptionItem = {
+      ...draft,
+      id: this.createId(),
+      name: draft.name.trim() || 'Suscripcion sin nombre',
+      provider: draft.provider.trim() || draft.name.trim() || 'Proveedor',
+      category: draft.category.trim() || 'General',
+      note: draft.note.trim(),
+      amount: Math.abs(Number(draft.amount) || 0),
+      createdAt: new Date().toISOString(),
+    };
+
+    this.subscriptions.update((items) => this.sortSubscriptions([subscription, ...items]));
+  }
+
+  removeSubscription(id: string): void {
+    this.subscriptions.update((items) => items.filter((item) => item.id !== id));
   }
 
   parseCapturedText(rawText: string): ParsedCapture | null {
@@ -425,6 +489,16 @@ export class FinanceStoreService {
     return Array.isArray(raw) ? raw.filter((item) => typeof item === 'string') : [];
   }
 
+  private loadProfile(): UserProfile {
+    const raw = this.readJson<Partial<UserProfile>>(PROFILE_KEY);
+    return { ...this.defaultProfile(), ...(raw || {}) };
+  }
+
+  private loadSubscriptions(): SubscriptionItem[] {
+    const raw = this.readJson<SubscriptionItem[]>(SUBSCRIPTIONS_KEY);
+    return Array.isArray(raw) ? this.sortSubscriptions(raw) : [];
+  }
+
   private escapeCsv(value: string): string {
     return `"${value.replaceAll('"', '""')}"`;
   }
@@ -472,6 +546,24 @@ export class FinanceStoreService {
       }
 
       return (right.createdAt || '').localeCompare(left.createdAt || '');
+    });
+  }
+
+  private sortSubscriptions(items: SubscriptionItem[]): SubscriptionItem[] {
+    return [...items].sort((left, right) => {
+      const statusCompare = left.status.localeCompare(right.status);
+
+      if (statusCompare !== 0) {
+        return statusCompare;
+      }
+
+      const dateCompare = left.nextBillingDate.localeCompare(right.nextBillingDate);
+
+      if (dateCompare !== 0) {
+        return dateCompare;
+      }
+
+      return left.name.localeCompare(right.name);
     });
   }
 }

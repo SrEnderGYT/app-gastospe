@@ -2,6 +2,9 @@ export type TransactionKind = 'expense' | 'income';
 export type CaptureSource = 'manual' | 'notification' | 'whatsapp' | 'gmail';
 export type SyncMode = 'local' | 'sheet' | 'firebase';
 export type SyncStatus = 'pending' | 'synced' | 'failed';
+export type WorkspaceView = 'overview' | 'add' | 'subscriptions' | 'automation' | 'profile';
+export type SubscriptionStatus = 'active' | 'paused' | 'cancelled';
+export type SubscriptionCycle = 'monthly' | 'annual';
 
 export interface TransactionDraft {
   kind: TransactionKind;
@@ -58,4 +61,28 @@ export interface ParsedCapture {
   source: CaptureSource;
   date: string;
   rawText: string;
+}
+
+export interface UserProfile {
+  fullName: string;
+  dni: string;
+  phone: string;
+  preferredView: WorkspaceView;
+}
+
+export interface SubscriptionDraft {
+  name: string;
+  amount: number;
+  cycle: SubscriptionCycle;
+  nextBillingDate: string;
+  provider: string;
+  category: string;
+  status: SubscriptionStatus;
+  note: string;
+  autopay: boolean;
+}
+
+export interface SubscriptionItem extends SubscriptionDraft {
+  id: string;
+  createdAt: string;
 }
