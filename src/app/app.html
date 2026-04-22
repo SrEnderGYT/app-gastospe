@@ -16,7 +16,7 @@
             {{ online() ? 'Con conexion' : 'Sin conexion' }}
           </span>
           <span class="chip neutral">{{ syncSummaryLabel() }}</span>
-          <span class="chip" [class.warning]="!cloudState().connected && isSignedIn()">
+          <span class="chip" [class.warning]="!cloudState().connected && hasCloudAccess()">
             {{ cloudState().connected ? 'Firestore conectado' : 'Cloud en espera' }}
           </span>
         </div>
@@ -24,7 +24,7 @@
         <div class="actions">
           @if (isSignedIn()) {
             <button class="ghost-button" type="button" (click)="signOutFromFirebase()">
-              Salir de Google
+              Cerrar sesion
             </button>
           } @else {
             <button
@@ -91,7 +91,7 @@
 
       <div class="info-line" [class.error]="firebaseAuthError()">
         <strong>Cloud</strong>
-        <span>{{ firebaseAuthError() || cloudState().lastMessage }}</span>
+        <span>{{ firebaseAuthError() || firebaseAuthNotice() || cloudState().lastMessage }}</span>
       </div>
     </section>
 
@@ -415,7 +415,7 @@
                 <button
                   type="button"
                   [class.active]="settings().syncMode === 'firebase'"
-                  [disabled]="!firebaseConfigReady()"
+                  [disabled]="!firebaseConfigReady() || !hasCloudAccess()"
                   (click)="setSyncMode('firebase')"
                 >
                   Firestore
@@ -464,14 +464,139 @@
               <div class="info-line error">
                 Completa la Web App de Firebase del proyecto <strong>{{ firebaseProjectId }}</strong>.
               </div>
-            } @else if (isSignedIn()) {
+            } @else if (!isSignedIn()) {
+              <div class="auth-card">
+                <div class="section-heading compact-heading">
+                  <div>
+                    <p class="section-label">Acceso</p>
+                    <h2>Entrar o crear cuenta</h2>
+                  </div>
+                </div>
+
+                <div class="toggle">
+                  <button
+                    type="button"
+                    [class.active]="authMode() === 'signin'"
+                    (click)="setAuthMode('signin')"
+                  >
+                    Entrar
+                  </button>
+                  <button
+                    type="button"
+                    [class.active]="authMode() === 'register'"
+                    (click)="setAuthMode('register')"
+                  >
+                    Crear cuenta
+                  </button>
+                </div>
+
+                <div class="field-group">
+                  @if (authMode() === 'register') {
+                    <div class="field">
+                      <label for="authName">Nombre</label>
+                      <input
+                        id="authName"
+                        name="authName"
+                        [ngModel]="authName()"
+                        (ngModelChange)="authName.set($event)"
+                        placeholder="Tu nombre o alias"
+                      />
+                    </div>
+                  }
+
+                  <div class="field">
+                    <label for="authEmail">Correo</label>
+                    <input
+                      id="authEmail"
+                      name="authEmail"
+                      type="email"
+                      [ngModel]="authEmail()"
+                      (ngModelChange)="authEmail.set($event)"
+                      placeholder="tu-correo@gmail.com"
+                    />
+                  </div>
+
+                  <div class="field">
+                    <label for="authPassword">Clave</label>
+                    <input
+                      id="authPassword"
+                      name="authPassword"
+                      type="password"
+                      [ngModel]="authPassword()"
+                      (ngModelChange)="authPassword.set($event)"
+                      placeholder="Minimo 6 caracteres"
+                    />
+                  </div>
+                </div>
+
+                <div class="inline-actions">
+                  <button
+                    class="primary-button"
+                    type="button"
+                    [disabled]="authLoading()"
+                    (click)="submitEmailAuth()"
+                  >
+                    {{ authMode() === 'register' ? 'Crear cuenta' : 'Entrar con correo' }}
+                  </button>
+                  <button
+                    class="secondary-button"
+                    type="button"
+                    [disabled]="authLoading()"
+                    (click)="signInWithGoogle()"
+                  >
+                    Entrar con Google
+                  </button>
+                </div>
+
+                @if (authMode() === 'signin') {
+                  <button
+                    class="ghost-button text-button"
+                    type="button"
+                    [disabled]="authLoading()"
+                    (click)="sendPasswordReset()"
+                  >
+                    Olvide mi clave
+                  </button>
+                }
+
+                <div class="compact-note">
+                  <strong>Acceso para equipo chico</strong>
+                  <p>Cada usuario tendra su propio espacio en Firestore. Si se registra con correo, primero debe verificarlo.</p>
+                </div>
+              </div>
+            } @else {
               <div class="info-line">
                 <strong>{{ firebaseUserLabel() }}</strong>
                 <span>{{ firebaseUserEmail() }}</span>
+                <span>Proveedor: {{ firebaseProviderLabel() }}</span>
+                <span>
+                  Verificacion:
+                  {{ isEmailVerified() ? 'lista' : 'pendiente' }}
+                </span>
                 <span>UID: <code>{{ firebaseUserId() }}</code></span>
               </div>
-            } @else {
-              <div class="info-line">Firebase esta listo, pero todavia no has iniciado sesion.</div>
+
+              @if (needsEmailVerification()) {
+                <div class="compact-note">
+                  <strong>Verificacion pendiente</strong>
+                  <p>Ya puedes usar la app en local, pero Firestore y automatizaciones quedaran activos cuando verifiques tu correo.</p>
+                  <div class="inline-actions">
+                    <button class="secondary-button" type="button" [disabled]="authLoading()" (click)="sendVerificationEmail()">
+                      Reenviar verificacion
+                    </button>
+                    <button class="ghost-button" type="button" [disabled]="authLoading()" (click)="refreshVerificationState()">
+                      Ya verifique
+                    </button>
+                  </div>
+                </div>
+              }
+            }
+
+            @if (firebaseAuthNotice()) {
+              <div class="info-line">
+                <strong>Cuenta</strong>
+                <span>{{ firebaseAuthNotice() }}</span>
+              </div>
             }
 
             <div class="info-line">

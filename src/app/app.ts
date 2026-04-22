@@ -32,11 +32,20 @@ export class App {
   protected readonly firebaseConfigReady = this.firebaseAuthService.configReady;
   protected readonly authLoading = this.firebaseAuthService.loading;
   protected readonly isSignedIn = this.firebaseAuthService.isSignedIn;
+  protected readonly hasCloudAccess = this.firebaseAuthService.hasCloudAccess;
+  protected readonly isEmailVerified = this.firebaseAuthService.isEmailVerified;
+  protected readonly needsEmailVerification = this.firebaseAuthService.needsEmailVerification;
   protected readonly firebaseUserLabel = this.firebaseAuthService.displayName;
   protected readonly firebaseUserEmail = this.firebaseAuthService.email;
   protected readonly firebaseUserId = this.firebaseAuthService.uid;
+  protected readonly firebaseProviderLabel = this.firebaseAuthService.providerLabel;
   protected readonly firebaseAuthError = this.firebaseAuthService.error;
+  protected readonly firebaseAuthNotice = this.firebaseAuthService.notice;
   protected readonly firebaseAutomationUrl = this.firebaseAuthService.automationFunctionUrl;
+  protected readonly authMode = signal<'signin' | 'register'>('signin');
+  protected readonly authName = signal('');
+  protected readonly authEmail = signal('');
+  protected readonly authPassword = signal('');
 
   protected readonly form = signal(this.store.createDraft());
 
@@ -129,15 +138,19 @@ export class App {
     }
 
     if (mode === 'firebase') {
-      return this.isSignedIn() ? 'Firestore' : 'Firebase';
+      return this.hasCloudAccess() ? 'Firestore' : 'Firebase';
     }
 
     return 'Local';
   });
 
   protected readonly syncSummaryLabel = computed(() => {
-    if (this.settings().syncMode === 'firebase' && this.isSignedIn()) {
+    if (this.settings().syncMode === 'firebase' && this.hasCloudAccess()) {
       return 'Cloud-first activo';
+    }
+
+    if (this.isSignedIn() && !this.hasCloudAccess()) {
+      return 'Verificacion pendiente';
     }
 
     if (this.settings().syncMode === 'sheet') {
@@ -154,6 +167,10 @@ export class App {
 
     if (!this.isSignedIn()) {
       return 'Inicia sesion para obtener tu UID y activar automatizaciones.';
+    }
+
+    if (!this.hasCloudAccess()) {
+      return 'Tu cuenta existe, pero debes verificar el correo antes de activar automatizaciones.';
     }
 
     return 'Tu cuenta ya puede recibir movimientos desde Apps Script.';
@@ -188,7 +205,7 @@ export class App {
         return;
       }
 
-      const isSignedIn = this.isSignedIn();
+      const isSignedIn = this.hasCloudAccess();
       const configReady = this.firebaseConfigReady();
       const currentMode = this.settings().syncMode;
 
@@ -227,7 +244,7 @@ export class App {
     this.store.addTransaction(this.form());
     this.form.set(this.store.createDraft());
     this.captureFeedback.set(
-      this.settings().syncMode === 'firebase' && this.isSignedIn()
+      this.settings().syncMode === 'firebase' && this.hasCloudAccess()
         ? 'Movimiento guardado y en cola para Firestore.'
         : 'Movimiento guardado localmente.',
     );
@@ -282,9 +299,41 @@ export class App {
   protected async signInWithGoogle(): Promise<void> {
     await this.firebaseAuthService.signIn();
 
-    if (this.isSignedIn() && this.settings().syncMode === 'local') {
+    if (this.hasCloudAccess() && this.settings().syncMode === 'local') {
       this.updateSetting('syncMode', 'firebase');
     }
+  }
+
+  protected async submitEmailAuth(): Promise<void> {
+    if (this.authMode() === 'register') {
+      await this.firebaseAuthService.registerWithEmail(
+        this.authName(),
+        this.authEmail(),
+        this.authPassword(),
+      );
+    } else {
+      await this.firebaseAuthService.signInWithEmail(this.authEmail(), this.authPassword());
+    }
+
+    if (this.hasCloudAccess() && this.settings().syncMode === 'local') {
+      this.updateSetting('syncMode', 'firebase');
+    }
+  }
+
+  protected async sendVerificationEmail(): Promise<void> {
+    await this.firebaseAuthService.resendVerificationEmail();
+  }
+
+  protected async refreshVerificationState(): Promise<void> {
+    await this.firebaseAuthService.refreshUser();
+
+    if (this.hasCloudAccess() && this.settings().syncMode === 'local') {
+      this.updateSetting('syncMode', 'firebase');
+    }
+  }
+
+  protected async sendPasswordReset(): Promise<void> {
+    await this.firebaseAuthService.sendPasswordReset(this.authEmail() || this.firebaseUserEmail());
   }
 
   protected async signOutFromFirebase(): Promise<void> {
@@ -297,12 +346,7 @@ export class App {
 
   protected setSyncMode(mode: SyncSettings['syncMode']): void {
     if (mode === 'firebase') {
-      if (!this.firebaseConfigReady()) {
-        return;
-      }
-
-      if (!this.isSignedIn()) {
-        void this.signInWithGoogle();
+      if (!this.firebaseConfigReady() || !this.hasCloudAccess()) {
         return;
       }
     }
@@ -316,6 +360,10 @@ export class App {
 
   protected removeTransaction(id: string): void {
     this.store.removeTransaction(id);
+  }
+
+  protected setAuthMode(mode: 'signin' | 'register'): void {
+    this.authMode.set(mode);
   }
 
   private consumeSharedCapture(): void {

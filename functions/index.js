@@ -31,6 +31,11 @@ exports.syncTransactions = onRequest({ cors: true, region: 'us-central1' }, asyn
     return;
   }
 
+  if (!decodedToken.email_verified) {
+    response.status(403).json({ ok: false, message: 'Verify email before syncing' });
+    return;
+  }
+
   const payload = parsePayload(request.body);
   const transactions = validateTransactions(payload.transactions);
 

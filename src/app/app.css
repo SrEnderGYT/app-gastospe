@@ -39,6 +39,8 @@
 .main-column,
 .stacked-info,
 .capture-side,
+.auth-card,
+.field-group,
 .metric-list,
 .transaction-list,
 .category-list {
@@ -112,6 +114,7 @@
 
 .status-cluster,
 .actions,
+.inline-actions,
 .section-heading,
 .category-row,
 .transaction-title-row,
@@ -203,6 +206,10 @@
 
 .section-heading h2 {
   font-size: 1.15rem;
+}
+
+.compact-heading h2 {
+  font-size: 1.02rem;
 }
 
 .form-grid,
@@ -315,8 +322,10 @@
 }
 
 .actions button,
+.inline-actions button,
 .danger-button,
-.full-button {
+.full-button,
+.text-button {
   min-height: 44px;
   padding: 0 14px;
   border-radius: 8px;
@@ -328,12 +337,15 @@
 }
 
 .actions button:hover,
+.inline-actions button:hover,
 .danger-button:hover,
-.full-button:hover {
+.full-button:hover,
+.text-button:hover {
   transform: translateY(-1px);
 }
 
 .actions button:disabled,
+.inline-actions button:disabled,
 .segmented button:disabled,
 .toggle button:disabled,
 .danger-button:disabled {
@@ -355,6 +367,10 @@
 .ghost-button {
   background: #eff2f1;
   color: #10231d;
+}
+
+.text-button {
+  justify-self: flex-start;
 }
 
 .danger-button {

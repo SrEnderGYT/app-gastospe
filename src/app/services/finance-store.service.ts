@@ -77,13 +77,17 @@ export class FinanceStoreService {
     }
 
     effect((onCleanup) => {
-      if (!this.firebaseAuth.isSignedIn() || !this.firebaseAuth.configReady()) {
+      if (!this.firebaseAuth.configReady() || !this.firebaseAuth.hasCloudAccess()) {
+        const authMessage = !this.firebaseAuth.configReady()
+          ? 'Completa Firebase para activar la nube.'
+          : !this.firebaseAuth.isSignedIn()
+            ? 'Inicia sesion para leer Firestore.'
+            : 'Verifica tu correo para habilitar Firestore.';
+
         this.cloudState.set({
           connected: false,
           lastPulledAt: untracked(() => this.cloudState().lastPulledAt),
-          lastMessage: this.firebaseAuth.configReady()
-            ? 'Inicia sesion con Google para leer Firestore.'
-            : 'Completa Firebase para activar la nube.',
+          lastMessage: authMessage,
         });
         return;
       }
@@ -170,7 +174,7 @@ export class FinanceStoreService {
   removeTransaction(id: string): void {
     this.transactions.update((items) => items.filter((item) => item.id !== id));
 
-    if (this.firebaseAuth.isSignedIn() && this.firebaseAuth.configReady()) {
+    if (this.firebaseAuth.hasCloudAccess() && this.firebaseAuth.configReady()) {
       this.deletedTransactionIds.update((items) => (items.includes(id) ? items : [...items, id]));
 
       if (this.settings().autoSync && this.online()) {
@@ -234,7 +238,16 @@ export class FinanceStoreService {
       this.syncState.set({
         syncing: false,
         lastAttempt: new Date().toISOString(),
-        lastMessage: 'Inicia sesion con Google para sincronizar en Firebase.',
+        lastMessage: 'Inicia sesion con Google o correo para sincronizar en Firebase.',
+      });
+      return;
+    }
+
+    if (settings.syncMode === 'firebase' && !this.firebaseAuth.hasCloudAccess()) {
+      this.syncState.set({
+        syncing: false,
+        lastAttempt: new Date().toISOString(),
+        lastMessage: 'Verifica tu correo para habilitar la sincronizacion cloud.',
       });
       return;
     }

@@ -24,7 +24,7 @@ export class FirebaseTransactionsService {
     const firestore = this.firebasePlatform.firestore;
     const uid = this.firebaseAuth.uid();
 
-    if (!firestore || !uid) {
+    if (!firestore || !uid || !this.firebaseAuth.hasCloudAccess()) {
       return null;
     }
 
@@ -47,10 +47,10 @@ export class FirebaseTransactionsService {
     const firestore = this.firebasePlatform.firestore;
     const uid = this.firebaseAuth.uid();
 
-    if (!firestore || !uid) {
+    if (!firestore || !uid || !this.firebaseAuth.hasCloudAccess()) {
       return {
         success: false,
-        message: 'Firestore no esta listo para sincronizar.',
+        message: 'Verifica tu cuenta para sincronizar con Firestore.',
       };
     }
 
@@ -103,10 +103,10 @@ export class FirebaseTransactionsService {
     const firestore = this.firebasePlatform.firestore;
     const uid = this.firebaseAuth.uid();
 
-    if (!firestore || !uid) {
+    if (!firestore || !uid || !this.firebaseAuth.hasCloudAccess()) {
       return {
         success: false,
-        message: 'Firestore no esta listo para eliminar movimientos.',
+        message: 'Verifica tu cuenta para eliminar en Firestore.',
       };
     }
 

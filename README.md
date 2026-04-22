@@ -5,7 +5,7 @@ Aplicacion Angular offline-first para registrar gastos, ingresos y pagos, con PW
 ## Estado actual
 
 - Guarda movimientos localmente y trabaja sin red.
-- Sincroniza el flujo principal directo a Firestore cuando hay sesion Google.
+- Sincroniza el flujo principal directo a Firestore cuando hay sesion verificada con Google o correo.
 - Mantiene cola local para pendientes y eliminaciones remotas.
 - Exporta movimientos a CSV.
 - Permite captura rapida desde texto compartido, notificaciones, WhatsApp o Gmail.
@@ -42,6 +42,7 @@ Para que el login funcione de punta a punta, revisa en Firebase Console:
 
 1. `Authentication` ya esta inicializado en el proyecto.
 2. `Identity Platform / Authentication > Providers > Google` debe quedar configurado.
+3. `Identity Platform / Authentication > Providers > Email/Password` debe quedar habilitado si quieres cuentas con correo y clave.
 3. En dominios autorizados agrega:
    - `localhost`
    - `app-gastospe.web.app`
@@ -49,12 +50,12 @@ Para que el login funcione de punta a punta, revisa en Firebase Console:
 4. En el cliente OAuth Web de Google usa como redirect URI:
    - `https://app-gastospe.firebaseapp.com/__/auth/handler`
 
-Importante: en este proyecto el backend ya quedo inicializado con `Identity Platform`, asi que si Google todavia no responde, falta terminar la configuracion del proveedor Google en consola.
+Importante: en este proyecto el backend ya quedo inicializado con `Identity Platform`. La app ya soporta Google y correo/clave; las cuentas por correo deben verificar su email antes de activar Firestore y automatizaciones.
 
 ## Arquitectura que queda en el repo
 
 - [src/app/services/firebase-platform.service.ts](src/app/services/firebase-platform.service.ts): inicializa Firebase App, Auth y Firestore con cache local.
-- [src/app/services/firebase-auth.service.ts](src/app/services/firebase-auth.service.ts): login Google, persistencia y errores guiados.
+- [src/app/services/firebase-auth.service.ts](src/app/services/firebase-auth.service.ts): login Google o correo, persistencia, verificacion y errores guiados.
 - [src/app/services/firebase-transactions.service.ts](src/app/services/firebase-transactions.service.ts): lectura y escritura directa en Firestore.
 - [src/app/services/finance-store.service.ts](src/app/services/finance-store.service.ts): store local-first, merge cloud/local, cola de sync y export.
 - [functions/index.js](functions/index.js): `syncTransactions` e `ingestAutomationTransactions`.
