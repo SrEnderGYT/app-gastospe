@@ -1,41 +1,65 @@
 <div class="shell">
   @if (accessStep() === 'auth') {
-    <main class="auth-page">
-      <section class="auth-hero">
-        <div class="brand-copy">
-          <p class="eyebrow">Gastospe</p>
-          <h1>Finanzas personales y de equipo, con entrada ordenada desde el primer minuto.</h1>
-          <p class="lede">
-            Entra, completa tus datos clave y trabaja luego con pestañas claras para resumen,
-            movimientos, suscripciones y automatizaciones.
-          </p>
-        </div>
+    <main class="auth-shell">
+      <section class="auth-preview surface-card">
+        <span class="micro-pill soft">Gastospe</span>
+        <h1>Tu dinero, claro y en orden.</h1>
+        <p class="page-copy">Accede y sigue desde un panel limpio, pensado para desktop y mobile.</p>
 
-        <div class="hero-grid">
-          <article class="hero-card">
-            <span class="micro-label">Acceso organizado</span>
-            <strong>Login primero</strong>
-            <p>Correo o Google, captcha simple y onboarding con datos reales.</p>
-          </article>
-          <article class="hero-card">
-            <span class="micro-label">Operacion diaria</span>
-            <strong>Secciones separadas</strong>
-            <p>Resumen, agregar, suscripciones, automatizacion y perfil.</p>
-          </article>
-          <article class="hero-card">
-            <span class="micro-label">Automatizacion</span>
-            <strong>Menos trabajo manual</strong>
-            <p>Gmail, BCP, BBVA, Yape y Plin listos para empujar movimientos solos.</p>
+        <div class="preview-scene" aria-hidden="true">
+          <article class="scene-board">
+            <div class="scene-window">
+              <div class="scene-dots">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+
+              <div class="scene-summary">
+                <div>
+                  <span class="scene-label">Resumen</span>
+                  <strong>Vista simple</strong>
+                </div>
+                <span class="scene-chip">Cloud</span>
+              </div>
+
+              <svg class="scene-chart" viewBox="0 0 100 42" preserveAspectRatio="none">
+                <polyline points="0,32 16,24 30,27 48,14 65,18 82,8 100,12"></polyline>
+              </svg>
+
+              <div class="scene-list">
+                <div class="scene-row">
+                  <span class="scene-icon income"></span>
+                  <div>
+                    <strong>Ingresos</strong>
+                    <small>Lectura rapida</small>
+                  </div>
+                  <span class="scene-value ok">+ S/ 280</span>
+                </div>
+                <div class="scene-row">
+                  <span class="scene-icon expense"></span>
+                  <div>
+                    <strong>Suscripciones</strong>
+                    <small>Agenda ordenada</small>
+                  </div>
+                  <span class="scene-value">3 activas</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="scene-side-note">
+              <span class="micro-pill">Google</span>
+              <p>Entra sin captcha.</p>
+            </div>
           </article>
         </div>
       </section>
 
-      <section class="auth-panel">
-        <div class="panel-head">
-          <p class="section-label">Acceso</p>
+      <section class="auth-card surface-card">
+        <header class="section-head">
+          <span class="micro-pill">Acceso</span>
           <h2>{{ authTitle() }}</h2>
-          <p>{{ authSubtitle() }}</p>
-        </div>
+        </header>
 
         <div class="segmented-control">
           <button
@@ -54,45 +78,7 @@
           </button>
         </div>
 
-        <div class="auth-form-grid">
-          @if (authMode() === 'register') {
-            <div class="field field-span-2">
-              <label for="authName">Nombre completo</label>
-              <input
-                id="authName"
-                name="authName"
-                [ngModel]="authName()"
-                (ngModelChange)="authName.set($event)"
-                placeholder="Como quieres identificar tu tablero"
-              />
-            </div>
-
-            <div class="field">
-              <label for="authDni">DNI</label>
-              <input
-                id="authDni"
-                name="authDni"
-                inputmode="numeric"
-                maxlength="8"
-                [ngModel]="authDni()"
-                (ngModelChange)="authDni.set($event)"
-                placeholder="8 digitos"
-              />
-            </div>
-
-            <div class="field">
-              <label for="authPhone">Telefono</label>
-              <input
-                id="authPhone"
-                name="authPhone"
-                inputmode="tel"
-                [ngModel]="authPhone()"
-                (ngModelChange)="authPhone.set($event)"
-                placeholder="9 digitos"
-              />
-            </div>
-          }
-
+        <div class="form-grid single">
           <div class="field">
             <label for="authEmail">Correo</label>
             <input
@@ -116,38 +102,58 @@
               placeholder="Minimo 6 caracteres"
             />
           </div>
-
-          <div class="field field-span-2">
-            <label for="captchaAnswer">Captcha simple</label>
-            <div class="captcha-row">
-              <div class="captcha-box">
-                <strong>{{ captchaPrompt() }}</strong>
-                <span>Escribe el resultado para continuar</span>
-              </div>
-              <input
-                id="captchaAnswer"
-                name="captchaAnswer"
-                inputmode="numeric"
-                [ngModel]="captchaAnswer()"
-                (ngModelChange)="captchaAnswer.set($event)"
-                placeholder="Resultado"
-              />
-              <button type="button" class="ghost-button small-button" (click)="refreshCaptcha()">
-                Cambiar
-              </button>
-            </div>
-          </div>
         </div>
 
-        @if (authWallMessage() || firebaseAuthError() || firebaseAuthNotice()) {
-          <div class="message-box" [class.error]="authWallMessage() || firebaseAuthError()">
-            {{ authWallMessage() || firebaseAuthError() || firebaseAuthNotice() }}
+        <section class="captcha-card">
+          <div class="captcha-head">
+            <div>
+              <strong>Captcha</strong>
+              <p>Solo para correo.</p>
+            </div>
+            <button type="button" class="ghost-button small-button" (click)="refreshCaptcha()">
+              Nuevo
+            </button>
+          </div>
+
+          <div class="captcha-word" aria-hidden="true">
+            @for (glyph of captchaChallenge().glyphs; track $index) {
+              <span
+                [style.transform]="
+                  'translateY(' +
+                  glyph.offset +
+                  'px) rotate(' +
+                  glyph.rotate +
+                  'deg) scale(' +
+                  glyph.scale +
+                  ')'
+                "
+              >
+                {{ glyph.char }}
+              </span>
+            }
+          </div>
+
+          <div class="field">
+            <label for="captchaInput">Escribe el texto</label>
+            <input
+              id="captchaInput"
+              name="captchaInput"
+              [ngModel]="captchaInput()"
+              (ngModelChange)="captchaInput.set($event)"
+              placeholder="Codigo"
+            />
+          </div>
+        </section>
+
+        @if (authBannerText()) {
+          <div class="message-box" [class.error]="authBannerIsError()">
+            {{ authBannerText() }}
           </div>
         }
 
-        <div class="action-row">
+        <div class="action-stack">
           <button class="primary-button" type="button" [disabled]="authLoading()" (click)="submitEmailAuth()">
-            {{ authMode() === 'register' ? 'Crear acceso' : 'Entrar con correo' }}
+            {{ authPrimaryLabel() }}
           </button>
           <button class="secondary-button" type="button" [disabled]="authLoading()" (click)="signInWithGoogle()">
             {{ authLoading() ? 'Abriendo Google...' : 'Entrar con Google' }}
@@ -159,51 +165,35 @@
           }
         </div>
 
-        <div class="support-grid">
-          <article class="support-item">
-            <strong>Datos personales basicos</strong>
-            <p>DNI y telefono para dejar tu perfil operativo ordenado desde el inicio.</p>
-          </article>
-          <article class="support-item">
-            <strong>Captcha liviano</strong>
-            <p>Un paso simple para filtrar bots sin friccion innecesaria.</p>
-          </article>
-          <article class="support-item">
-            <strong>Vista por modulos</strong>
-            <p>Despues del acceso, todo queda separado en pantallas mas limpias.</p>
-          </article>
-        </div>
+        <p class="quiet-copy">Google entra sin captcha. Con correo solo pedimos una validacion minima.</p>
       </section>
     </main>
   } @else if (accessStep() === 'profile') {
-    <main class="setup-page">
-      <section class="setup-card">
-        <div class="panel-head">
-          <p class="section-label">Perfil inicial</p>
-          <h2>Completa tus datos personales antes de entrar</h2>
-          <p>
-            Ya tienes sesion activa. Solo falta dejar tu perfil operativo listo para ordenar el
-            tablero y las futuras automatizaciones.
-          </p>
-        </div>
+    <main class="profile-shell">
+      <section class="profile-card surface-card">
+        <header class="section-head large">
+          <span class="micro-pill">Perfil inicial</span>
+          <h2>Completa tus datos una sola vez</h2>
+          <p class="page-copy">Guarda y luego entra manualmente al tablero.</p>
+        </header>
 
-        <div class="identity-strip">
+        <div class="identity-row">
           <span class="chip ok">{{ firebaseProviderLabel() }}</span>
           <span class="chip neutral">{{ firebaseUserEmail() }}</span>
-          <span class="chip" [class.warn]="needsEmailVerification()">
+          <span class="chip" [class.ok]="isEmailVerified()" [class.warn]="needsEmailVerification()">
             {{ isEmailVerified() ? 'Correo verificado' : 'Verificacion pendiente' }}
           </span>
         </div>
 
-        <div class="setup-grid">
-          <div class="field">
+        <div class="form-grid">
+          <div class="field field-span-2">
             <label for="profileName">Nombre completo</label>
             <input
               id="profileName"
               name="profileName"
               [ngModel]="profile().fullName"
               (ngModelChange)="updateProfileField('fullName', $event)"
-              placeholder="Ej. German Perez"
+              placeholder="Tu nombre"
             />
           </div>
 
@@ -233,7 +223,7 @@
           </div>
 
           <div class="field">
-            <label for="profileView">Pantalla inicial</label>
+            <label for="profileView">Vista inicial</label>
             <select
               id="profileView"
               name="profileView"
@@ -247,1001 +237,865 @@
           </div>
         </div>
 
-        @if (authWallMessage() || firebaseAuthNotice()) {
-          <div class="message-box" [class.error]="authWallMessage()">
-            {{ authWallMessage() || firebaseAuthNotice() }}
+        @if (profileBannerText()) {
+          <div class="message-box" [class.error]="profileBannerIsError()">
+            {{ profileBannerText() }}
           </div>
         }
 
         <div class="action-row">
-          <button class="primary-button" type="button" (click)="completeProfileSetup()">
+          <button class="primary-button" type="button" (click)="saveInitialProfile()">
+            Guardar datos
+          </button>
+          <button
+            class="secondary-button"
+            type="button"
+            [disabled]="!profile().onboardingCompleted"
+            (click)="enterWorkspaceAfterSetup()"
+          >
             Entrar al tablero
           </button>
-          @if (needsEmailVerification()) {
-            <button class="secondary-button" type="button" [disabled]="authLoading()" (click)="sendVerificationEmail()">
+          <button class="ghost-button" type="button" (click)="signOutFromFirebase()">
+            Cerrar sesion
+          </button>
+        </div>
+
+        @if (needsEmailVerification()) {
+          <div class="action-row">
+            <button class="ghost-button" type="button" [disabled]="authLoading()" (click)="sendVerificationEmail()">
               Reenviar verificacion
             </button>
             <button class="ghost-button" type="button" [disabled]="authLoading()" (click)="refreshVerificationState()">
               Ya verifique
             </button>
-          }
-        </div>
+          </div>
+        }
       </section>
     </main>
   } @else {
     <div class="workspace-shell">
-      <aside class="workspace-sidebar">
-        <div class="sidebar-brand">
-          <p class="eyebrow">Gastospe</p>
-          <h2>{{ welcomeName() }}</h2>
-          <p>Tu tablero ya no vive en una sola vista. Ahora respira por secciones.</p>
+      <header class="workspace-topbar surface-card">
+        <div class="brand-block">
+          <div class="brand-mark">G</div>
+          <div class="brand-copy">
+            <span class="micro-pill soft">Gastospe</span>
+            <h1>{{ welcomeName() }}</h1>
+          </div>
         </div>
 
-        <nav class="side-nav">
-          @for (item of workspaceNav; track item.value) {
-            <button
-              type="button"
-              class="nav-item"
-              [class.active]="isCurrentView(item.value)"
-              (click)="setActiveView(item.value)"
-            >
-              <span class="nav-title">{{ item.label }}</span>
-              <span class="nav-meta">{{ item.eyebrow }}</span>
-            </button>
-          }
-        </nav>
+        <div class="topbar-status">
+          <span class="chip" [ngClass]="cloudTone()">{{ cloudSummary() }}</span>
+          <span class="chip" [class.ok]="online()" [class.warn]="!online()">
+            {{ online() ? 'Online' : 'Offline' }}
+          </span>
+          <span class="chip" [ngClass]="syncTone()">
+            {{
+              settings().syncMode === 'firebase'
+                ? 'Firestore'
+                : settings().syncMode === 'sheet'
+                  ? 'Sheets'
+                  : 'Local'
+            }}
+          </span>
+        </div>
 
-        <section class="sidebar-module">
-          <div class="micro-heading">
-            <p class="section-label">Estado</p>
-            <h3>Operacion rapida</h3>
-          </div>
+        <div class="topbar-actions">
+          <button class="ghost-button" type="button" (click)="exportCsv()">CSV</button>
+          <button class="ghost-button" type="button" [disabled]="syncState().syncing" (click)="syncNow()">
+            {{ syncState().syncing ? 'Sync...' : 'Sincronizar' }}
+          </button>
+          <button class="ghost-button" type="button" (click)="signOutFromFirebase()">Salir</button>
+        </div>
+      </header>
 
-          <div class="status-stack">
-            <div class="status-pill-row">
-              <span class="chip" [class.warn]="!online()">{{ online() ? 'Online' : 'Offline' }}</span>
-              <span class="chip neutral">{{ syncSummaryLabel() }}</span>
-            </div>
-            <div class="status-line">
-              <strong>Sync</strong>
-              <span>{{ syncState().lastMessage }}</span>
-            </div>
-            <div class="status-line">
-              <strong>Cloud</strong>
-              <span>{{ firebaseAuthError() || firebaseAuthNotice() || cloudState().lastMessage }}</span>
-            </div>
-          </div>
-        </section>
+      <nav class="tabs-bar">
+        @for (item of workspaceNav; track item.value) {
+          <button
+            type="button"
+            class="tab-button"
+            [class.active]="activeView() === item.value"
+            (click)="setActiveView(item.value)"
+          >
+            {{ item.label }}
+          </button>
+        }
+      </nav>
 
-        <section class="sidebar-module">
-          <div class="micro-heading">
-            <p class="section-label">Suscripciones</p>
-            <h3>Agenda</h3>
-          </div>
-
-          @if (upcomingSubscriptions().length) {
-            <div class="mini-list">
-              @for (item of upcomingSubscriptions().slice(0, 4); track item.id) {
-                <article class="mini-item">
-                  <strong>{{ item.name }}</strong>
-                  <span>{{ describeSubscriptionBilling(item) }}</span>
-                </article>
-              }
-            </div>
-          } @else {
-            <p class="soft-copy">Todavia no agregaste suscripciones activas.</p>
-          }
-        </section>
-      </aside>
-
-      <main class="workspace-main">
-        <header class="workspace-topbar">
-          <div>
-            <p class="section-label">Panel principal</p>
-            <h1>{{ workspaceNav.find((item) => item.value === activeView())?.label }}</h1>
-            <p>{{ workspaceNav.find((item) => item.value === activeView())?.description }}</p>
-          </div>
-
-          <div class="topbar-actions">
-            <button class="ghost-button" type="button" (click)="exportCsv()">Exportar CSV</button>
-            <button class="secondary-button" type="button" [disabled]="syncState().syncing" (click)="syncNow()">
-              {{ syncState().syncing ? 'Sincronizando...' : 'Sincronizar ahora' }}
-            </button>
-            <button class="ghost-button" type="button" (click)="signOutFromFirebase()">
-              Cerrar sesion
-            </button>
-          </div>
-        </header>
-
-        @switch (activeView()) {
-          @case ('overview') {
-            <section class="workspace-section section-grid">
-              <div class="section-intro">
-                <p class="section-label">Resumen</p>
-                <h2>Vista ejecutiva de {{ currentMonthLabel() }}</h2>
-                <p>
-                  Balance, gastos, cobros recurrentes y una lectura rapida para saber en que punto
-                  estas sin perderte en formularios.
-                </p>
+      @switch (activeView()) {
+        @case ('overview') {
+          <section class="page-shell">
+            <header class="page-head">
+              <div>
+                <span class="micro-pill">Resumen</span>
+                <h2>{{ currentMonthLabel() }}</h2>
+                <p class="page-copy">Una lectura rapida del mes actual.</p>
               </div>
+            </header>
 
-              <div class="stats-grid">
-                <article class="metric-tile accent">
-                  <span class="micro-label">Balance</span>
-                  <strong>{{ totals().balance | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</strong>
-                  <p>Resultado neto del mes actual.</p>
-                </article>
-                <article class="metric-tile">
-                  <span class="micro-label">Ingresos</span>
-                  <strong>{{ totals().income | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</strong>
-                  <p>Entradas registradas este mes.</p>
-                </article>
-                <article class="metric-tile">
-                  <span class="micro-label">Gastos</span>
-                  <strong>{{ totals().expense | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</strong>
-                  <p>Salidas acumuladas hasta hoy.</p>
-                </article>
-                <article class="metric-tile">
-                  <span class="micro-label">Run rate</span>
-                  <strong>{{ monthlyRunRate() | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</strong>
-                  <p>Proyeccion del ritmo actual.</p>
-                </article>
-              </div>
+            <div class="metrics-grid">
+              <article class="metric-card balance">
+                <span class="metric-label">Balance</span>
+                <strong>{{ totals().balance | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</strong>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Ingresos</span>
+                <strong>{{ totals().income | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</strong>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Gastos</span>
+                <strong>{{ totals().expense | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</strong>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Pendientes</span>
+                <strong>{{ totals().pending }}</strong>
+              </article>
+            </div>
 
-              <div class="dashboard-grid">
-                <section class="panel-block">
-                  <div class="micro-heading">
-                    <p class="section-label">Radar</p>
-                    <h3>Alertas e insights</h3>
-                  </div>
+            <div class="page-grid">
+              <section class="panel-card chart-card">
+                <div class="panel-headline">
+                  <h3>Flujo semanal</h3>
+                  <span class="chip neutral">
+                    {{ trend().total | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}
+                  </span>
+                </div>
 
-                  <div class="insight-list">
-                    @for (item of radarAlerts(); track item.title) {
-                      <article class="insight-item">
-                        <strong>{{ item.title }}</strong>
-                        <p>{{ item.detail }}</p>
+                <div class="chart-stage">
+                  <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+                    <defs>
+                      <linearGradient id="trendGradient" x1="0" x2="1" y1="0" y2="1">
+                        <stop offset="0%" stop-color="#1d4ed8"></stop>
+                        <stop offset="100%" stop-color="#10b981"></stop>
+                      </linearGradient>
+                    </defs>
+                    <polyline [attr.points]="trend().points"></polyline>
+                  </svg>
+                </div>
+
+                <div class="chart-labels">
+                  @for (label of trend().labels; track label) {
+                    <span>{{ label }}</span>
+                  }
+                </div>
+              </section>
+
+              <section class="panel-card">
+                <div class="panel-headline">
+                  <h3>Categorias</h3>
+                  <span class="muted-copy">{{ monthlyRunRate() | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</span>
+                </div>
+
+                @if (categoryBreakdown().length) {
+                  <div class="stack-list">
+                    @for (item of categoryBreakdown(); track item.category) {
+                      <article class="progress-item">
+                        <div class="progress-head">
+                          <strong>{{ item.category }}</strong>
+                          <span>{{ item.total | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</span>
+                        </div>
+                        <div class="progress-track">
+                          <span [style.width.%]="totals().expense ? (item.total / totals().expense) * 100 : 0"></span>
+                        </div>
                       </article>
                     }
                   </div>
-                </section>
+                } @else {
+                  <p class="empty-copy">Aun no hay gastos suficientes para el detalle.</p>
+                }
+              </section>
 
-                <section class="panel-block">
-                  <div class="micro-heading">
-                    <p class="section-label">Categorias</p>
-                    <h3>Gasto por rubro</h3>
+              <section class="panel-card panel-span-2">
+                <div class="panel-headline">
+                  <h3>Movimientos recientes</h3>
+                  <span class="muted-copy">{{ latestTransactions().length }} visibles</span>
+                </div>
+
+                @if (latestTransactions().length) {
+                  <div class="transaction-list">
+                    @for (item of latestTransactions(); track item.id) {
+                      <article class="transaction-row">
+                        <div class="transaction-main">
+                          <strong>{{ item.title }}</strong>
+                          <span>{{ item.category }} | {{ item.date | date: 'dd MMM' : '' : 'es-PE' }}</span>
+                        </div>
+                        <span class="status-chip" [class.ok]="item.syncStatus === 'synced'" [class.warn]="item.syncStatus === 'pending'">
+                          {{ item.syncStatus }}
+                        </span>
+                        <strong [class.income]="item.kind === 'income'" [class.expense]="item.kind === 'expense'">
+                          {{ item.kind === 'expense' ? '-' : '+' }}
+                          {{ item.amount | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}
+                        </strong>
+                      </article>
+                    }
                   </div>
+                } @else {
+                  <p class="empty-copy">Todavia no tienes movimientos.</p>
+                }
+              </section>
+            </div>
+          </section>
+        }
 
-                  @if (categoryBreakdown().length) {
-                    <div class="bar-list">
-                      @for (item of categoryBreakdown(); track item.category) {
-                        <article class="bar-item">
-                          <div class="bar-item-head">
-                            <strong>{{ item.category }}</strong>
-                            <span>{{ item.total | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</span>
-                          </div>
-                          <div class="bar-track">
-                            <span [style.width.%]="totals().expense ? (item.total / totals().expense) * 100 : 0"></span>
-                          </div>
-                        </article>
-                      }
-                    </div>
-                  } @else {
-                    <p class="soft-copy">Aun no hay egresos suficientes para armar un mapa por categoria.</p>
-                  }
-                </section>
-
-                <section class="panel-block">
-                  <div class="micro-heading">
-                    <p class="section-label">Suscripciones</p>
-                    <h3>Agenda de cobros</h3>
-                  </div>
-
-                  <div class="list-summary">
-                    <div>
-                      <span class="micro-label">Activas</span>
-                      <strong>{{ subscriptionSummary().active }}</strong>
-                    </div>
-                    <div>
-                      <span class="micro-label">Costo mensual estimado</span>
-                      <strong>{{ subscriptionSummary().monthlyEquivalent | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</strong>
-                    </div>
-                  </div>
-
-                  @if (upcomingSubscriptions().length) {
-                    <div class="mini-list">
-                      @for (item of upcomingSubscriptions(); track item.id) {
-                        <article class="subscription-row">
-                          <div>
-                            <strong>{{ item.name }}</strong>
-                            <p>{{ item.provider }} | {{ describeSubscriptionCadence(item) }}</p>
-                          </div>
-                          <div class="right-stack">
-                            <span>{{ item.amount | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</span>
-                            <small>{{ describeSubscriptionBilling(item) }}</small>
-                          </div>
-                        </article>
-                      }
-                    </div>
-                  } @else {
-                    <p class="soft-copy">No tienes cobros proximos cargados.</p>
-                  }
-                </section>
-
-                <section class="panel-block">
-                  <div class="micro-heading">
-                    <p class="section-label">Actividad</p>
-                    <h3>Ultimos movimientos</h3>
-                  </div>
-
-                  @if (latestTransactions().length) {
-                    <div class="mini-list">
-                      @for (item of latestTransactions(); track item.id) {
-                        <article class="transaction-compact">
-                          <div>
-                            <strong>{{ item.title }}</strong>
-                            <p>{{ item.category }} | {{ item.date | date: 'dd MMM' : '' : 'es-PE' }}</p>
-                          </div>
-                          <span [class.income]="item.kind === 'income'" [class.expense]="item.kind === 'expense'">
-                            {{ item.kind === 'expense' ? '-' : '+' }}
-                            {{ item.amount | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}
-                          </span>
-                        </article>
-                      }
-                    </div>
-                  } @else {
-                    <p class="soft-copy">Todavia no tienes movimientos registrados.</p>
-                  }
-                </section>
+        @case ('add') {
+          <section class="page-shell">
+            <header class="page-head">
+              <div>
+                <span class="micro-pill">Agregar</span>
+                <h2>Nuevo movimiento</h2>
+                <p class="page-copy">Carga manual o texto pegado.</p>
               </div>
-            </section>
-          }
+            </header>
 
-          @case ('add') {
-            <section class="workspace-section section-grid">
-              <div class="section-intro">
-                <p class="section-label">Agregar</p>
-                <h2>Gastos e ingresos, ahora con una vista dedicada</h2>
-                <p>
-                  Usa esta pestaña solo para registrar, interpretar textos bancarios y revisar los
-                  ultimos movimientos sin ensuciar el resumen.
-                </p>
-              </div>
+            <div class="page-grid two-up">
+              <section class="panel-card">
+                <div class="segmented-control compact">
+                  @for (mode of quickModes; track mode.value) {
+                    <button
+                      type="button"
+                      [class.active]="form().kind === mode.value"
+                      (click)="updateForm('kind', mode.value)"
+                    >
+                      {{ mode.label }}
+                    </button>
+                  }
+                </div>
 
-              <div class="split-layout">
-                <section class="panel-block">
-                  <div class="panel-toolbar">
-                    <div>
-                      <p class="section-label">Nuevo movimiento</p>
-                      <h3>Formulario rapido</h3>
-                    </div>
-
-                    <div class="segmented-control">
-                      @for (mode of quickModes; track mode.value) {
-                        <button
-                          type="button"
-                          [class.active]="form().kind === mode.value"
-                          (click)="updateForm('kind', mode.value)"
-                        >
-                          {{ mode.label }}
-                        </button>
-                      }
-                    </div>
-                  </div>
-
-                  <form class="form-grid" (ngSubmit)="submitTransaction()">
-                    <div class="field field-span-2">
-                      <label for="title">Titulo</label>
-                      <input
-                        id="title"
-                        name="title"
-                        [ngModel]="form().title"
-                        (ngModelChange)="updateForm('title', $event)"
-                        placeholder="Ej. Supermercado, sueldo, taxi, pago recibido"
-                        required
-                      />
-                    </div>
-
-                    <div class="field">
-                      <label for="amount">Monto</label>
-                      <input
-                        id="amount"
-                        name="amount"
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        [ngModel]="form().amount"
-                        (ngModelChange)="updateForm('amount', +$event)"
-                        required
-                      />
-                    </div>
-
-                    <div class="field">
-                      <label for="date">Fecha</label>
-                      <input
-                        id="date"
-                        name="date"
-                        type="date"
-                        [ngModel]="form().date"
-                        (ngModelChange)="updateForm('date', $event)"
-                      />
-                    </div>
-
-                    <div class="field">
-                      <label for="category">Categoria</label>
-                      <select
-                        id="category"
-                        name="category"
-                        [ngModel]="form().category"
-                        (ngModelChange)="updateForm('category', $event)"
-                      >
-                        @for (category of categories; track category) {
-                          <option [value]="category">{{ category }}</option>
-                        }
-                      </select>
-                    </div>
-
-                    <div class="field">
-                      <label for="account">Cuenta o medio</label>
-                      <select
-                        id="account"
-                        name="account"
-                        [ngModel]="form().account"
-                        (ngModelChange)="updateForm('account', $event)"
-                      >
-                        @for (account of accountOptions; track account) {
-                          <option [value]="account">{{ account }}</option>
-                        }
-                      </select>
-                    </div>
-
-                    <div class="field">
-                      <label for="source">Origen</label>
-                      <select
-                        id="source"
-                        name="source"
-                        [ngModel]="form().source"
-                        (ngModelChange)="updateForm('source', $event)"
-                      >
-                        <option value="manual">Manual</option>
-                        <option value="notification">Notificacion</option>
-                        <option value="whatsapp">WhatsApp</option>
-                        <option value="gmail">Gmail</option>
-                      </select>
-                    </div>
-
-                    <div class="field field-span-2">
-                      <label for="note">Nota</label>
-                      <textarea
-                        id="note"
-                        name="note"
-                        [ngModel]="form().note"
-                        (ngModelChange)="updateForm('note', $event)"
-                        placeholder="Comentario, comprobante, detalle de cuota o recordatorio"
-                      ></textarea>
-                    </div>
-
-                    <div class="field-span-2 action-row">
-                      <button class="primary-button" type="submit">Guardar movimiento</button>
-                    </div>
-                  </form>
-                </section>
-
-                <section class="panel-block">
-                  <div class="micro-heading">
-                    <p class="section-label">Captura</p>
-                    <h3>Texto automatico o compartido</h3>
+                <div class="form-grid">
+                  <div class="field field-span-2">
+                    <label for="title">Titulo</label>
+                    <input
+                      id="title"
+                      name="title"
+                      [ngModel]="form().title"
+                      (ngModelChange)="updateForm('title', $event)"
+                      placeholder="Ej. Supermercado, sueldo, taxi"
+                    />
                   </div>
 
                   <div class="field">
-                    <label for="capture">Texto detectado</label>
-                    <textarea
-                      id="capture"
-                      name="capture"
-                      [ngModel]="captureText()"
-                      (ngModelChange)="captureText.set($event)"
-                      placeholder="Ej. BBVA: Transferencia por S/ 120.00 a Carlos Perez desde tu cuenta."
-                    ></textarea>
-                  </div>
-
-                  <div class="action-row">
-                    <button class="secondary-button" type="button" (click)="parseCapture()">
-                      Interpretar texto
-                    </button>
-                  </div>
-
-                  @if (captureFeedback()) {
-                    <div class="message-box">{{ captureFeedback() }}</div>
-                  }
-
-                  <div class="support-grid compact-support">
-                    <article class="support-item">
-                      <strong>Captura bancaria</strong>
-                      <p>Texto de BBVA, BCP, Yape o Plin para precargar el movimiento.</p>
-                    </article>
-                    <article class="support-item">
-                      <strong>WhatsApp e iPhone</strong>
-                      <p>Si compartes texto o usas Atajos, esta es la pestaña donde aterriza mejor.</p>
-                    </article>
-                  </div>
-                </section>
-              </div>
-
-              <section class="panel-block">
-                <div class="panel-toolbar">
-                  <div>
-                    <p class="section-label">Historial</p>
-                    <h3>Ultimos movimientos</h3>
-                  </div>
-
-                  <div class="filter-row">
+                    <label for="amount">Monto</label>
                     <input
-                      name="search"
-                      [ngModel]="transactionSearch()"
-                      (ngModelChange)="transactionSearch.set($event)"
-                      placeholder="Buscar por titulo, nota o categoria"
+                      id="amount"
+                      name="amount"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      [ngModel]="form().amount"
+                      (ngModelChange)="updateForm('amount', +$event)"
                     />
+                  </div>
+
+                  <div class="field">
+                    <label for="date">Fecha</label>
+                    <input
+                      id="date"
+                      name="date"
+                      type="date"
+                      [ngModel]="form().date"
+                      (ngModelChange)="updateForm('date', $event)"
+                    />
+                  </div>
+
+                  <div class="field">
+                    <label for="category">Categoria</label>
                     <select
-                      name="kindFilter"
-                      [ngModel]="transactionKindFilter()"
-                      (ngModelChange)="transactionKindFilter.set($event)"
+                      id="category"
+                      name="category"
+                      [ngModel]="form().category"
+                      (ngModelChange)="updateForm('category', $event)"
                     >
-                      <option value="all">Todos</option>
-                      <option value="expense">Gastos</option>
-                      <option value="income">Ingresos</option>
+                      @for (category of categories; track category) {
+                        <option [value]="category">{{ category }}</option>
+                      }
                     </select>
+                  </div>
+
+                  <div class="field">
+                    <label for="account">Cuenta</label>
                     <select
-                      name="statusFilter"
-                      [ngModel]="transactionStatusFilter()"
-                      (ngModelChange)="transactionStatusFilter.set($event)"
+                      id="account"
+                      name="account"
+                      [ngModel]="form().account"
+                      (ngModelChange)="updateForm('account', $event)"
                     >
-                      <option value="all">Todos</option>
-                      <option value="pending">Pendiente</option>
-                      <option value="synced">Sincronizado</option>
-                      <option value="failed">Fallido</option>
+                      @for (account of accountOptions; track account) {
+                        <option [value]="account">{{ account }}</option>
+                      }
                     </select>
+                  </div>
+
+                  <div class="field">
+                    <label for="source">Origen</label>
+                    <select
+                      id="source"
+                      name="source"
+                      [ngModel]="form().source"
+                      (ngModelChange)="updateForm('source', $event)"
+                    >
+                      <option value="manual">Manual</option>
+                      <option value="notification">Notificacion</option>
+                      <option value="whatsapp">WhatsApp</option>
+                      <option value="gmail">Gmail</option>
+                    </select>
+                  </div>
+
+                  <div class="field field-span-2">
+                    <label for="note">Nota</label>
+                    <textarea
+                      id="note"
+                      name="note"
+                      [ngModel]="form().note"
+                      (ngModelChange)="updateForm('note', $event)"
+                      placeholder="Detalle opcional"
+                    ></textarea>
                   </div>
                 </div>
 
-                @if (visibleTransactions().length) {
-                  <div class="table-list">
-                    @for (item of visibleTransactions(); track item.id) {
-                      <article class="table-row">
-                        <div>
+                <div class="action-row">
+                  <button class="primary-button" type="button" (click)="submitTransaction()">
+                    Guardar movimiento
+                  </button>
+                </div>
+              </section>
+
+              <section class="panel-card">
+                <div class="panel-headline">
+                  <h3>Captura rapida</h3>
+                  <span class="muted-copy">Pega texto de Gmail, banca o chat.</span>
+                </div>
+
+                <div class="field">
+                  <label for="captureText">Texto</label>
+                  <textarea
+                    id="captureText"
+                    name="captureText"
+                    class="capture-box"
+                    [ngModel]="captureText()"
+                    (ngModelChange)="captureText.set($event)"
+                    placeholder="Ej. Transferiste por Yape S/ 32.50 a Ana por almuerzo"
+                  ></textarea>
+                </div>
+
+                <div class="action-row">
+                  <button class="secondary-button" type="button" (click)="parseCapture()">
+                    Reconocer texto
+                  </button>
+                </div>
+
+                @if (captureFeedback()) {
+                  <div class="message-box">{{ captureFeedback() }}</div>
+                }
+
+                <div class="panel-divider"></div>
+
+                <div class="panel-headline">
+                  <h3>Ultimos guardados</h3>
+                  <span class="muted-copy">{{ latestTransactions().length }} items</span>
+                </div>
+
+                @if (latestTransactions().length) {
+                  <div class="transaction-list compact-list">
+                    @for (item of latestTransactions(); track item.id) {
+                      <article class="transaction-row compact">
+                        <div class="transaction-main">
                           <strong>{{ item.title }}</strong>
-                          <p>{{ item.category }} | {{ item.account }} | {{ item.source }}</p>
+                          <span>{{ item.source }} | {{ item.date | date: 'dd MMM' : '' : 'es-PE' }}</span>
                         </div>
-                        <span class="mono">{{ item.date | date: 'dd MMM yyyy' : '' : 'es-PE' }}</span>
-                        <span class="mono" [class.income]="item.kind === 'income'" [class.expense]="item.kind === 'expense'">
-                          {{ item.kind === 'expense' ? '-' : '+' }}
+                        <strong [class.income]="item.kind === 'income'" [class.expense]="item.kind === 'expense'">
                           {{ item.amount | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}
-                        </span>
-                        <span class="chip" [class.warn]="item.syncStatus !== 'synced'">
-                          {{ item.syncStatus }}
-                        </span>
+                        </strong>
                         <button class="ghost-button small-button" type="button" (click)="removeTransaction(item.id)">
-                          Eliminar
+                          Quitar
                         </button>
                       </article>
                     }
                   </div>
                 } @else {
-                  <p class="soft-copy">No hay movimientos que coincidan con los filtros actuales.</p>
+                  <p class="empty-copy">Todavia no hay movimientos para mostrar.</p>
                 }
               </section>
-            </section>
-          }
-
-          @case ('subscriptions') {
-            <section class="workspace-section section-grid">
-              <div class="section-intro">
-                <p class="section-label">Suscripciones</p>
-                <h2>Calendario de cobros y facturacion recurrente</h2>
-                <p>
-                  Lleva control de lo que se factura cada mes o cada año, detecta proximos vencimientos
-                  y entiende cuanto te cuestan tus servicios vivos.
-                </p>
-              </div>
-
-              <div class="stats-grid">
-                <article class="metric-tile accent">
-                  <span class="micro-label">Activas</span>
-                  <strong>{{ subscriptionSummary().active }}</strong>
-                  <p>Servicios con cobro vigente.</p>
-                </article>
-                <article class="metric-tile">
-                  <span class="micro-label">Costo mensual</span>
-                  <strong>{{ subscriptionSummary().monthlyEquivalent | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</strong>
-                  <p>Equivalente mensual aproximado.</p>
-                </article>
-                <article class="metric-tile">
-                  <span class="micro-label">Proximas</span>
-                  <strong>{{ subscriptionSummary().upcoming }}</strong>
-                  <p>Vencimientos dentro de 21 dias.</p>
-                </article>
-                <article class="metric-tile">
-                  <span class="micro-label">Pausadas</span>
-                  <strong>{{ subscriptionSummary().paused }}</strong>
-                  <p>Servicios en pausa o por revisar.</p>
-                </article>
-              </div>
-
-              <div class="split-layout">
-                <section class="panel-block">
-                  <div class="micro-heading">
-                    <p class="section-label">Nueva suscripcion</p>
-                    <h3>Registro recurrente</h3>
-                  </div>
-
-                  <div class="form-grid">
-                    <div class="field field-span-2">
-                      <label for="subName">Nombre</label>
-                      <input
-                        id="subName"
-                        name="subName"
-                        [ngModel]="subscriptionForm().name"
-                        (ngModelChange)="updateSubscriptionForm('name', $event)"
-                        placeholder="Ej. Netflix, Google One, Adobe"
-                      />
-                    </div>
-
-                    <div class="field">
-                      <label for="subProvider">Proveedor</label>
-                      <input
-                        id="subProvider"
-                        name="subProvider"
-                        [ngModel]="subscriptionForm().provider"
-                        (ngModelChange)="updateSubscriptionForm('provider', $event)"
-                        placeholder="Marca o comercio"
-                      />
-                    </div>
-
-                    <div class="field">
-                      <label for="subAmount">Monto</label>
-                      <input
-                        id="subAmount"
-                        name="subAmount"
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        [ngModel]="subscriptionForm().amount"
-                        (ngModelChange)="updateSubscriptionForm('amount', +$event)"
-                      />
-                    </div>
-
-                    <div class="field">
-                      <label for="subCycle">Ciclo</label>
-                      <select
-                        id="subCycle"
-                        name="subCycle"
-                        [ngModel]="subscriptionForm().cycle"
-                        (ngModelChange)="updateSubscriptionForm('cycle', $event)"
-                      >
-                        <option value="monthly">Mensual</option>
-                        <option value="annual">Anual</option>
-                      </select>
-                    </div>
-
-                    <div class="field">
-                      <label for="subNextDate">Proximo cobro</label>
-                      <input
-                        id="subNextDate"
-                        name="subNextDate"
-                        type="date"
-                        [ngModel]="subscriptionForm().nextBillingDate"
-                        (ngModelChange)="updateSubscriptionForm('nextBillingDate', $event)"
-                      />
-                    </div>
-
-                    <div class="field">
-                      <label for="subCategory">Categoria</label>
-                      <select
-                        id="subCategory"
-                        name="subCategory"
-                        [ngModel]="subscriptionForm().category"
-                        (ngModelChange)="updateSubscriptionForm('category', $event)"
-                      >
-                        @for (category of subscriptionCategories; track category) {
-                          <option [value]="category">{{ category }}</option>
-                        }
-                      </select>
-                    </div>
-
-                    <div class="field">
-                      <label for="subStatus">Estado</label>
-                      <select
-                        id="subStatus"
-                        name="subStatus"
-                        [ngModel]="subscriptionForm().status"
-                        (ngModelChange)="updateSubscriptionForm('status', $event)"
-                      >
-                        <option value="active">Activa</option>
-                        <option value="paused">Pausada</option>
-                        <option value="cancelled">Cancelada</option>
-                      </select>
-                    </div>
-
-                    <div class="field field-span-2">
-                      <label for="subNote">Nota</label>
-                      <textarea
-                        id="subNote"
-                        name="subNote"
-                        [ngModel]="subscriptionForm().note"
-                        (ngModelChange)="updateSubscriptionForm('note', $event)"
-                        placeholder="Plan, promo, usuario compartido o comentario util"
-                      ></textarea>
-                    </div>
-                  </div>
-
-                  <div class="toggle-line">
-                    <div>
-                      <strong>Autopago</strong>
-                      <p>Marca si el cargo se ejecuta solo sin intervención.</p>
-                    </div>
-                    <div class="segmented-control">
-                      <button
-                        type="button"
-                        [class.active]="subscriptionForm().autopay"
-                        (click)="updateSubscriptionForm('autopay', true)"
-                      >
-                        Si
-                      </button>
-                      <button
-                        type="button"
-                        [class.active]="!subscriptionForm().autopay"
-                        (click)="updateSubscriptionForm('autopay', false)"
-                      >
-                        No
-                      </button>
-                    </div>
-                  </div>
-
-                  <div class="action-row">
-                    <button class="primary-button" type="button" (click)="addSubscription()">
-                      Guardar suscripcion
-                    </button>
-                  </div>
-
-                  @if (subscriptionFeedback()) {
-                    <div class="message-box">{{ subscriptionFeedback() }}</div>
-                  }
-                </section>
-
-                <section class="panel-block">
-                  <div class="micro-heading">
-                    <p class="section-label">Agenda</p>
-                    <h3>Servicios cargados</h3>
-                  </div>
-
-                  @if (subscriptions().length) {
-                    <div class="table-list">
-                      @for (item of subscriptions(); track item.id) {
-                        <article class="subscription-table-row">
-                          <div>
-                            <strong>{{ item.name }}</strong>
-                            <p>{{ item.provider }} | {{ item.category }}</p>
-                          </div>
-                          <span>{{ describeSubscriptionCadence(item) }}</span>
-                          <span>{{ item.amount | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</span>
-                          <span>{{ describeSubscriptionBilling(item) }}</span>
-                          <span class="chip" [ngClass]="badgeClassForSubscription(item)">
-                            {{ describeSubscriptionStatus(item) }}
-                          </span>
-                          <button class="ghost-button small-button" type="button" (click)="removeSubscription(item.id)">
-                            Quitar
-                          </button>
-                        </article>
-                      }
-                    </div>
-                  } @else {
-                    <p class="soft-copy">Aun no agregaste suscripciones. Esta pestaña sirve para ordenar tus cobros fijos.</p>
-                  }
-                </section>
-              </div>
-            </section>
-          }
-
-          @case ('automation') {
-            <section class="workspace-section section-grid">
-              <div class="section-intro">
-                <p class="section-label">Automatizacion</p>
-                <h2>Flujos cloud y captura sin esfuerzo</h2>
-                <p>
-                  Aqui dejas listo Gmail, Firestore y el puente para que la web deje de ser el
-                  lugar donde escribes todo a mano.
-                </p>
-              </div>
-
-              <div class="dashboard-grid">
-                <section class="panel-block">
-                  <div class="micro-heading">
-                    <p class="section-label">Cloud</p>
-                    <h3>Estado general</h3>
-                  </div>
-
-                  <div class="status-stack">
-                    <div class="status-line">
-                      <strong>Proyecto</strong>
-                      <span>{{ firebaseProjectId }}</span>
-                    </div>
-                    <div class="status-line">
-                      <strong>Modo de sync</strong>
-                      <span>{{ syncTargetLabel() }}</span>
-                    </div>
-                    <div class="status-line">
-                      <strong>Estado</strong>
-                      <span>{{ automationSummary() }}</span>
-                    </div>
-                    <div class="status-line">
-                      <strong>UID destino</strong>
-                      <span><code>{{ firebaseUserId() || 'Inicia sesion' }}</code></span>
-                    </div>
-                  </div>
-                </section>
-
-                <section class="panel-block">
-                  <div class="micro-heading">
-                    <p class="section-label">Gmail</p>
-                    <h3>Apps Script</h3>
-                  </div>
-
-                  <div class="instruction-list">
-                    <article class="support-item">
-                      <strong>1. Script listo</strong>
-                      <p>Usa <code>docs/gmail-firestore-apps-script.gs</code> con tu UID y el secreto.</p>
-                    </article>
-                    <article class="support-item">
-                      <strong>2. Origenes soportados</strong>
-                      <p>BCP, BBVA, Yape y Plin por correo o texto bancario.</p>
-                    </article>
-                    <article class="support-item">
-                      <strong>3. Captura cloud</strong>
-                      <p><code>{{ firebaseAutomationUrl() }}</code></p>
-                    </article>
-                  </div>
-                </section>
-
-                <section class="panel-block">
-                  <div class="micro-heading">
-                    <p class="section-label">Atajos</p>
-                    <h3>Puentes realistas</h3>
-                  </div>
-
-                  <div class="instruction-list">
-                    <article class="support-item">
-                      <strong>Gmail automatico</strong>
-                      <p>La mejor ruta actual si no quieres escribir nada desde la web.</p>
-                    </article>
-                    <article class="support-item">
-                      <strong>iPhone</strong>
-                      <p>Atajos para compartir texto, porque iOS no deja leer push libremente.</p>
-                    </article>
-                    <article class="support-item">
-                      <strong>WhatsApp oficial</strong>
-                      <p>Meta Business API es la ruta seria para automatizacion real por chat.</p>
-                    </article>
-                  </div>
-                </section>
-
-                <section class="panel-block">
-                  <div class="micro-heading">
-                    <p class="section-label">Configuracion</p>
-                    <h3>Sincronizacion</h3>
-                  </div>
-
-                  <div class="form-grid">
-                    <div class="field">
-                      <label for="owner">Nombre del tablero</label>
-                      <input
-                        id="owner"
-                        name="owner"
-                        [ngModel]="settings().owner"
-                        (ngModelChange)="updateSetting('owner', $event)"
-                      />
-                    </div>
-
-                    <div class="field">
-                      <label for="currency">Moneda</label>
-                      <select
-                        id="currency"
-                        name="currency"
-                        [ngModel]="settings().currency"
-                        (ngModelChange)="updateSetting('currency', $event)"
-                      >
-                        <option value="PEN">PEN</option>
-                        <option value="USD">USD</option>
-                        <option value="EUR">EUR</option>
-                      </select>
-                    </div>
-
-                    <div class="field field-span-2">
-                      <label for="sheetUrl">Webhook de Google Sheets</label>
-                      <input
-                        id="sheetUrl"
-                        name="sheetUrl"
-                        [ngModel]="settings().sheetWebhookUrl"
-                        (ngModelChange)="updateSetting('sheetWebhookUrl', $event)"
-                        placeholder="https://script.google.com/macros/s/..."
-                      />
-                    </div>
-                  </div>
-
-                  <div class="toggle-line">
-                    <div>
-                      <strong>Auto sync</strong>
-                      <p>Reintenta cuando vuelve la red o cuando recuperas sesion.</p>
-                    </div>
-
-                    <div class="segmented-control">
-                      <button
-                        type="button"
-                        [class.active]="settings().autoSync"
-                        (click)="updateSetting('autoSync', true)"
-                      >
-                        Activo
-                      </button>
-                      <button
-                        type="button"
-                        [class.active]="!settings().autoSync"
-                        (click)="updateSetting('autoSync', false)"
-                      >
-                        Pausado
-                      </button>
-                    </div>
-                  </div>
-
-                  <div class="segmented-control">
-                    <button
-                      type="button"
-                      [class.active]="settings().syncMode === 'local'"
-                      (click)="setSyncMode('local')"
-                    >
-                      Local
-                    </button>
-                    <button
-                      type="button"
-                      [class.active]="settings().syncMode === 'sheet'"
-                      (click)="setSyncMode('sheet')"
-                    >
-                      Sheets
-                    </button>
-                    <button
-                      type="button"
-                      [class.active]="settings().syncMode === 'firebase'"
-                      [disabled]="!firebaseConfigReady() || !hasCloudAccess()"
-                      (click)="setSyncMode('firebase')"
-                    >
-                      Firestore
-                    </button>
-                  </div>
-                </section>
-              </div>
-            </section>
-          }
-
-          @case ('profile') {
-            <section class="workspace-section section-grid">
-              <div class="section-intro">
-                <p class="section-label">Perfil</p>
-                <h2>Datos personales, seguridad y preferencias</h2>
-                <p>
-                  Esta pestaña concentra tu identidad operativa, la informacion base del tablero y
-                  el estado de la cuenta cloud.
-                </p>
-              </div>
-
-              <div class="split-layout">
-                <section class="panel-block">
-                  <div class="micro-heading">
-                    <p class="section-label">Identidad</p>
-                    <h3>Datos personales</h3>
-                  </div>
-
-                  <div class="form-grid">
-                    <div class="field field-span-2">
-                      <label for="profileNameFull">Nombre completo</label>
-                      <input
-                        id="profileNameFull"
-                        name="profileNameFull"
-                        [ngModel]="profile().fullName"
-                        (ngModelChange)="updateProfileField('fullName', $event)"
-                      />
-                    </div>
-
-                    <div class="field">
-                      <label for="profileDniFull">DNI</label>
-                      <input
-                        id="profileDniFull"
-                        name="profileDniFull"
-                        inputmode="numeric"
-                        maxlength="8"
-                        [ngModel]="profile().dni"
-                        (ngModelChange)="updateProfileField('dni', $event)"
-                      />
-                    </div>
-
-                    <div class="field">
-                      <label for="profilePhoneFull">Telefono</label>
-                      <input
-                        id="profilePhoneFull"
-                        name="profilePhoneFull"
-                        inputmode="tel"
-                        [ngModel]="profile().phone"
-                        (ngModelChange)="updateProfileField('phone', $event)"
-                      />
-                    </div>
-
-                    <div class="field">
-                      <label for="profilePreferredView">Pestaña inicial</label>
-                      <select
-                        id="profilePreferredView"
-                        name="profilePreferredView"
-                        [ngModel]="profile().preferredView"
-                        (ngModelChange)="updateProfileField('preferredView', $event)"
-                      >
-                        @for (item of workspaceNav; track item.value) {
-                          <option [value]="item.value">{{ item.label }}</option>
-                        }
-                      </select>
-                    </div>
-                  </div>
-
-                  <div class="action-row">
-                    <button class="primary-button" type="button" (click)="completeProfileSetup()">
-                      Guardar perfil
-                    </button>
-                  </div>
-                </section>
-
-                <section class="panel-block">
-                  <div class="micro-heading">
-                    <p class="section-label">Cuenta</p>
-                    <h3>Sesion y seguridad</h3>
-                  </div>
-
-                  <div class="status-stack">
-                    <div class="status-line">
-                      <strong>Usuario</strong>
-                      <span>{{ firebaseUserLabel() }}</span>
-                    </div>
-                    <div class="status-line">
-                      <strong>Correo</strong>
-                      <span>{{ firebaseUserEmail() }}</span>
-                    </div>
-                    <div class="status-line">
-                      <strong>Proveedor</strong>
-                      <span>{{ firebaseProviderLabel() }}</span>
-                    </div>
-                    <div class="status-line">
-                      <strong>Verificacion</strong>
-                      <span>{{ isEmailVerified() ? 'Lista' : 'Pendiente' }}</span>
-                    </div>
-                  </div>
-
-                  <div class="action-row">
-                    @if (needsEmailVerification()) {
-                      <button class="secondary-button" type="button" [disabled]="authLoading()" (click)="sendVerificationEmail()">
-                        Reenviar verificacion
-                      </button>
-                      <button class="ghost-button" type="button" [disabled]="authLoading()" (click)="refreshVerificationState()">
-                        Ya verifique
-                      </button>
-                    }
-                    <button class="ghost-button" type="button" [disabled]="authLoading()" (click)="sendPasswordReset()">
-                      Recuperar clave
-                    </button>
-                  </div>
-
-                  @if (firebaseAuthNotice() || firebaseAuthError()) {
-                    <div class="message-box" [class.error]="firebaseAuthError()">
-                      {{ firebaseAuthError() || firebaseAuthNotice() }}
-                    </div>
-                  }
-                </section>
-              </div>
-            </section>
-          }
+            </div>
+          </section>
         }
-      </main>
+
+        @case ('subscriptions') {
+          <section class="page-shell">
+            <header class="page-head">
+              <div>
+                <span class="micro-pill">Suscripciones</span>
+                <h2>Cobros recurrentes</h2>
+                <p class="page-copy">Controla fechas y costo mensual estimado.</p>
+              </div>
+            </header>
+
+            <div class="metrics-grid compact-metrics">
+              <article class="metric-card">
+                <span class="metric-label">Activas</span>
+                <strong>{{ subscriptionSummary().active }}</strong>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Pausadas</span>
+                <strong>{{ subscriptionSummary().paused }}</strong>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Mensual</span>
+                <strong>{{ subscriptionSummary().monthlyEquivalent | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</strong>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Proximas</span>
+                <strong>{{ subscriptionSummary().nextCount }}</strong>
+              </article>
+            </div>
+
+            <div class="page-grid two-up">
+              <section class="panel-card">
+                <div class="panel-headline">
+                  <h3>Nueva suscripcion</h3>
+                </div>
+
+                <div class="form-grid">
+                  <div class="field field-span-2">
+                    <label for="subName">Nombre</label>
+                    <input
+                      id="subName"
+                      name="subName"
+                      [ngModel]="subscriptionForm().name"
+                      (ngModelChange)="updateSubscriptionForm('name', $event)"
+                      placeholder="Netflix, Google One, Adobe"
+                    />
+                  </div>
+
+                  <div class="field">
+                    <label for="subProvider">Proveedor</label>
+                    <input
+                      id="subProvider"
+                      name="subProvider"
+                      [ngModel]="subscriptionForm().provider"
+                      (ngModelChange)="updateSubscriptionForm('provider', $event)"
+                      placeholder="Marca o comercio"
+                    />
+                  </div>
+
+                  <div class="field">
+                    <label for="subAmount">Monto</label>
+                    <input
+                      id="subAmount"
+                      name="subAmount"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      [ngModel]="subscriptionForm().amount"
+                      (ngModelChange)="updateSubscriptionForm('amount', +$event)"
+                    />
+                  </div>
+
+                  <div class="field">
+                    <label for="subCycle">Ciclo</label>
+                    <select
+                      id="subCycle"
+                      name="subCycle"
+                      [ngModel]="subscriptionForm().cycle"
+                      (ngModelChange)="updateSubscriptionForm('cycle', $event)"
+                    >
+                      <option value="monthly">Mensual</option>
+                      <option value="annual">Anual</option>
+                    </select>
+                  </div>
+
+                  <div class="field">
+                    <label for="subNextDate">Proximo cobro</label>
+                    <input
+                      id="subNextDate"
+                      name="subNextDate"
+                      type="date"
+                      [ngModel]="subscriptionForm().nextBillingDate"
+                      (ngModelChange)="updateSubscriptionForm('nextBillingDate', $event)"
+                    />
+                  </div>
+
+                  <div class="field">
+                    <label for="subCategory">Categoria</label>
+                    <select
+                      id="subCategory"
+                      name="subCategory"
+                      [ngModel]="subscriptionForm().category"
+                      (ngModelChange)="updateSubscriptionForm('category', $event)"
+                    >
+                      @for (category of subscriptionCategories; track category) {
+                        <option [value]="category">{{ category }}</option>
+                      }
+                    </select>
+                  </div>
+
+                  <div class="field">
+                    <label for="subStatus">Estado</label>
+                    <select
+                      id="subStatus"
+                      name="subStatus"
+                      [ngModel]="subscriptionForm().status"
+                      (ngModelChange)="updateSubscriptionForm('status', $event)"
+                    >
+                      <option value="active">Activa</option>
+                      <option value="paused">Pausada</option>
+                      <option value="cancelled">Cancelada</option>
+                    </select>
+                  </div>
+
+                  <div class="field field-span-2">
+                    <label for="subNote">Nota</label>
+                    <textarea
+                      id="subNote"
+                      name="subNote"
+                      [ngModel]="subscriptionForm().note"
+                      (ngModelChange)="updateSubscriptionForm('note', $event)"
+                      placeholder="Comentario opcional"
+                    ></textarea>
+                  </div>
+                </div>
+
+                <div class="toggle-row">
+                  <span>Autopago</span>
+                  <div class="segmented-control compact">
+                    <button
+                      type="button"
+                      [class.active]="subscriptionForm().autopay"
+                      (click)="updateSubscriptionForm('autopay', true)"
+                    >
+                      Si
+                    </button>
+                    <button
+                      type="button"
+                      [class.active]="!subscriptionForm().autopay"
+                      (click)="updateSubscriptionForm('autopay', false)"
+                    >
+                      No
+                    </button>
+                  </div>
+                </div>
+
+                <div class="action-row">
+                  <button class="primary-button" type="button" (click)="addSubscription()">
+                    Guardar suscripcion
+                  </button>
+                </div>
+
+                @if (subscriptionFeedback()) {
+                  <div class="message-box">{{ subscriptionFeedback() }}</div>
+                }
+              </section>
+
+              <section class="panel-card">
+                <div class="panel-headline">
+                  <h3>Agenda</h3>
+                  <span class="muted-copy">{{ subscriptions().length }} servicios</span>
+                </div>
+
+                @if (subscriptions().length) {
+                  <div class="subscription-list">
+                    @for (item of subscriptions(); track item.id) {
+                      <article class="subscription-row">
+                        <div class="subscription-main">
+                          <strong>{{ item.name }}</strong>
+                          <span>{{ item.provider }} | {{ describeSubscriptionCadence(item) }}</span>
+                        </div>
+                        <span class="status-chip" [ngClass]="badgeClassForSubscription(item)">
+                          {{ describeSubscriptionStatus(item) }}
+                        </span>
+                        <strong>{{ item.amount | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</strong>
+                        <span>{{ describeSubscriptionBilling(item) }}</span>
+                        <button class="ghost-button small-button" type="button" (click)="removeSubscription(item.id)">
+                          Quitar
+                        </button>
+                      </article>
+                    }
+                  </div>
+                } @else {
+                  <p class="empty-copy">Aun no agregaste suscripciones.</p>
+                }
+              </section>
+            </div>
+          </section>
+        }
+
+        @case ('automation') {
+          <section class="page-shell">
+            <header class="page-head">
+              <div>
+                <span class="micro-pill">Automatizacion</span>
+                <h2>Nube y Gmail</h2>
+                <p class="page-copy">Deja lista la sincronizacion y el ingreso automatico.</p>
+              </div>
+            </header>
+
+            <div class="page-grid">
+              <section class="panel-card">
+                <div class="panel-headline">
+                  <h3>Estado</h3>
+                </div>
+
+                <div class="info-list">
+                  <div class="info-row">
+                    <span>Proyecto</span>
+                    <strong>{{ firebaseProjectId }}</strong>
+                  </div>
+                  <div class="info-row">
+                    <span>Cloud</span>
+                    <strong>{{ cloudSummary() }}</strong>
+                  </div>
+                  <div class="info-row">
+                    <span>Automatizacion</span>
+                    <strong>{{ automationStatus() }}</strong>
+                  </div>
+                  <div class="info-row">
+                    <span>UID</span>
+                    <strong class="mono">{{ firebaseUserId() || 'Inicia sesion' }}</strong>
+                  </div>
+                </div>
+              </section>
+
+              <section class="panel-card">
+                <div class="panel-headline">
+                  <h3>Gmail</h3>
+                </div>
+
+                <div class="stack-list">
+                  <article class="support-row">
+                    <strong>Archivo</strong>
+                    <span><code>docs/gmail-firestore-apps-script.gs</code></span>
+                  </article>
+                  <article class="support-row">
+                    <strong>Endpoint</strong>
+                    <span><code>{{ firebaseAutomationUrl() }}</code></span>
+                  </article>
+                  <article class="support-row">
+                    <strong>Soporta</strong>
+                    <span>BCP, BBVA, Yape y Plin</span>
+                  </article>
+                </div>
+              </section>
+
+              <section class="panel-card panel-span-2">
+                <div class="panel-headline">
+                  <h3>Sincronizacion</h3>
+                  <span class="muted-copy">{{ syncState().lastMessage }}</span>
+                </div>
+
+                <div class="form-grid">
+                  <div class="field">
+                    <label for="owner">Nombre del tablero</label>
+                    <input
+                      id="owner"
+                      name="owner"
+                      [ngModel]="settings().owner"
+                      (ngModelChange)="updateSetting('owner', $event)"
+                    />
+                  </div>
+
+                  <div class="field">
+                    <label for="currency">Moneda</label>
+                    <select
+                      id="currency"
+                      name="currency"
+                      [ngModel]="settings().currency"
+                      (ngModelChange)="updateSetting('currency', $event)"
+                    >
+                      <option value="PEN">PEN</option>
+                      <option value="USD">USD</option>
+                      <option value="EUR">EUR</option>
+                    </select>
+                  </div>
+
+                  <div class="field field-span-2">
+                    <label for="sheetUrl">Webhook de Google Sheets</label>
+                    <input
+                      id="sheetUrl"
+                      name="sheetUrl"
+                      [ngModel]="settings().sheetWebhookUrl"
+                      (ngModelChange)="updateSetting('sheetWebhookUrl', $event)"
+                      placeholder="https://script.google.com/macros/s/..."
+                    />
+                  </div>
+                </div>
+
+                <div class="toggle-row block">
+                  <span>Auto sync</span>
+                  <div class="segmented-control compact">
+                    <button
+                      type="button"
+                      [class.active]="settings().autoSync"
+                      (click)="updateSetting('autoSync', true)"
+                    >
+                      Activo
+                    </button>
+                    <button
+                      type="button"
+                      [class.active]="!settings().autoSync"
+                      (click)="updateSetting('autoSync', false)"
+                    >
+                      Pausado
+                    </button>
+                  </div>
+                </div>
+
+                <div class="segmented-control compact">
+                  <button
+                    type="button"
+                    [class.active]="settings().syncMode === 'local'"
+                    (click)="setSyncMode('local')"
+                  >
+                    Local
+                  </button>
+                  <button
+                    type="button"
+                    [class.active]="settings().syncMode === 'sheet'"
+                    (click)="setSyncMode('sheet')"
+                  >
+                    Sheets
+                  </button>
+                  <button
+                    type="button"
+                    [class.active]="settings().syncMode === 'firebase'"
+                    [disabled]="!firebaseConfigReady() || !hasCloudAccess()"
+                    (click)="setSyncMode('firebase')"
+                  >
+                    Firestore
+                  </button>
+                </div>
+
+                @if (firebaseAuthError() || firebaseAuthNotice()) {
+                  <div class="message-box" [class.error]="firebaseAuthError()">
+                    {{ firebaseAuthError() || firebaseAuthNotice() }}
+                  </div>
+                }
+              </section>
+            </div>
+          </section>
+        }
+
+        @case ('profile') {
+          <section class="page-shell">
+            <header class="page-head">
+              <div>
+                <span class="micro-pill">Perfil</span>
+                <h2>Cuenta y preferencias</h2>
+                <p class="page-copy">Datos personales y estado de acceso.</p>
+              </div>
+            </header>
+
+            <div class="page-grid two-up">
+              <section class="panel-card">
+                <div class="panel-headline">
+                  <h3>Datos personales</h3>
+                </div>
+
+                <div class="form-grid">
+                  <div class="field field-span-2">
+                    <label for="profileNameFull">Nombre completo</label>
+                    <input
+                      id="profileNameFull"
+                      name="profileNameFull"
+                      [ngModel]="profile().fullName"
+                      (ngModelChange)="updateProfileField('fullName', $event)"
+                    />
+                  </div>
+
+                  <div class="field">
+                    <label for="profileDniFull">DNI</label>
+                    <input
+                      id="profileDniFull"
+                      name="profileDniFull"
+                      inputmode="numeric"
+                      maxlength="8"
+                      [ngModel]="profile().dni"
+                      (ngModelChange)="updateProfileField('dni', $event)"
+                    />
+                  </div>
+
+                  <div class="field">
+                    <label for="profilePhoneFull">Telefono</label>
+                    <input
+                      id="profilePhoneFull"
+                      name="profilePhoneFull"
+                      inputmode="tel"
+                      [ngModel]="profile().phone"
+                      (ngModelChange)="updateProfileField('phone', $event)"
+                    />
+                  </div>
+
+                  <div class="field">
+                    <label for="profilePreferredView">Vista inicial</label>
+                    <select
+                      id="profilePreferredView"
+                      name="profilePreferredView"
+                      [ngModel]="profile().preferredView"
+                      (ngModelChange)="updateProfileField('preferredView', $event)"
+                    >
+                      @for (item of workspaceNav; track item.value) {
+                        <option [value]="item.value">{{ item.label }}</option>
+                      }
+                    </select>
+                  </div>
+                </div>
+
+                <div class="action-row">
+                  <button class="primary-button" type="button" (click)="saveProfileChanges()">
+                    Guardar perfil
+                  </button>
+                </div>
+
+                @if (profileBannerText()) {
+                  <div class="message-box" [class.error]="profileBannerIsError()">
+                    {{ profileBannerText() }}
+                  </div>
+                }
+              </section>
+
+              <section class="panel-card">
+                <div class="panel-headline">
+                  <h3>Cuenta</h3>
+                </div>
+
+                <div class="info-list">
+                  <div class="info-row">
+                    <span>Usuario</span>
+                    <strong>{{ firebaseUserLabel() }}</strong>
+                  </div>
+                  <div class="info-row">
+                    <span>Correo</span>
+                    <strong>{{ firebaseUserEmail() }}</strong>
+                  </div>
+                  <div class="info-row">
+                    <span>Proveedor</span>
+                    <strong>{{ firebaseProviderLabel() }}</strong>
+                  </div>
+                  <div class="info-row">
+                    <span>Verificacion</span>
+                    <strong>{{ isEmailVerified() ? 'Lista' : 'Pendiente' }}</strong>
+                  </div>
+                  <div class="info-row">
+                    <span>Cloud</span>
+                    <strong>{{ cloudState().lastMessage }}</strong>
+                  </div>
+                </div>
+
+                <div class="action-row">
+                  @if (needsEmailVerification()) {
+                    <button class="ghost-button" type="button" [disabled]="authLoading()" (click)="sendVerificationEmail()">
+                      Reenviar verificacion
+                    </button>
+                    <button class="ghost-button" type="button" [disabled]="authLoading()" (click)="refreshVerificationState()">
+                      Ya verifique
+                    </button>
+                  }
+                  <button class="ghost-button" type="button" [disabled]="authLoading()" (click)="sendPasswordReset()">
+                    Recuperar clave
+                  </button>
+                </div>
+              </section>
+            </div>
+          </section>
+        }
+      }
     </div>
   }
 </div>

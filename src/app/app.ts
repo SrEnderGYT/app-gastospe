@@ -6,6 +6,8 @@ import {
   SubscriptionItem,
   SyncSettings,
   SyncStatus,
+  Transaction,
+  TransactionDraft,
   TransactionKind,
   UserProfile,
   WorkspaceView,
@@ -14,7 +16,8 @@ import { FirebaseAuthService } from './services/firebase-auth.service';
 import { FinanceStoreService } from './services/finance-store.service';
 
 type AccessStep = 'auth' | 'profile' | 'workspace';
-type CaptchaChallenge = { left: number; right: number };
+type CaptchaGlyph = { char: string; rotate: number; offset: number; scale: number };
+type CaptchaChallenge = { value: string; glyphs: CaptchaGlyph[] };
 
 @Component({
   selector: 'app-root',
@@ -25,7 +28,7 @@ type CaptchaChallenge = { left: number; right: number };
 export class App {
   private readonly store = inject(FinanceStoreService);
   private readonly firebaseAuthService = inject(FirebaseAuthService);
-  private lastKnownAuthState: boolean | null = null;
+  private lastKnownCloudState: boolean | null = null;
 
   protected readonly transactions = this.store.transactions;
   protected readonly settings = this.store.settings;
@@ -34,19 +37,6 @@ export class App {
   protected readonly online = this.store.online;
   protected readonly syncState = this.store.syncState;
   protected readonly cloudState = this.store.cloudState;
-  protected readonly deletedTransactionIds = this.store.deletedTransactionIds;
-
-  protected readonly captureText = signal('');
-  protected readonly captureFeedback = signal('');
-  protected readonly transactionSearch = signal('');
-  protected readonly transactionStatusFilter = signal<'all' | SyncStatus>('all');
-  protected readonly transactionKindFilter = signal<'all' | TransactionKind>('all');
-  protected readonly activeView = signal<WorkspaceView>(this.profile().preferredView || 'overview');
-  protected readonly subscriptionForm = signal(this.store.createSubscriptionDraft());
-  protected readonly subscriptionFeedback = signal('');
-  protected readonly authWallMessage = signal('');
-  protected readonly captchaAnswer = signal('');
-  protected readonly captchaChallenge = signal<CaptchaChallenge>(this.generateCaptcha());
 
   protected readonly firebaseConfigReady = this.firebaseAuthService.configReady;
   protected readonly authLoading = this.firebaseAuthService.loading;
@@ -63,51 +53,27 @@ export class App {
   protected readonly firebaseAutomationUrl = this.firebaseAuthService.automationFunctionUrl;
 
   protected readonly authMode = signal<'signin' | 'register'>('signin');
-  protected readonly authName = signal('');
   protected readonly authEmail = signal('');
   protected readonly authPassword = signal('');
-  protected readonly authDni = signal('');
-  protected readonly authPhone = signal('');
-
+  protected readonly authMessage = signal('');
+  protected readonly captchaInput = signal('');
+  protected readonly captchaChallenge = signal<CaptchaChallenge>(this.createCaptchaChallenge());
+  protected readonly onboardingStayOpen = signal(false);
+  protected readonly captureText = signal('');
+  protected readonly captureFeedback = signal('');
+  protected readonly subscriptionFeedback = signal('');
+  protected readonly profileMessage = signal('');
+  protected readonly activeView = signal<WorkspaceView>(this.profile().preferredView || 'overview');
   protected readonly form = signal(this.store.createDraft());
+  protected readonly subscriptionForm = signal(this.store.createSubscriptionDraft());
 
   protected readonly workspaceNav = [
-    {
-      value: 'overview',
-      label: 'Resumen',
-      eyebrow: 'Control general',
-      description: 'Balance, alertas, agenda y salud financiera.',
-    },
-    {
-      value: 'add',
-      label: 'Agregar',
-      eyebrow: 'Registro diario',
-      description: 'Carga gastos, ingresos o captura texto bancario.',
-    },
-    {
-      value: 'subscriptions',
-      label: 'Suscripciones',
-      eyebrow: 'Pagos recurrentes',
-      description: 'Vencimientos, autopago y costo mensual estimado.',
-    },
-    {
-      value: 'automation',
-      label: 'Automatizacion',
-      eyebrow: 'Flujos cloud',
-      description: 'Gmail, Firestore, sync y puente para automatizaciones.',
-    },
-    {
-      value: 'profile',
-      label: 'Perfil',
-      eyebrow: 'Cuenta y ajustes',
-      description: 'Datos personales, seguridad y preferencias.',
-    },
-  ] as const satisfies ReadonlyArray<{
-    value: WorkspaceView;
-    label: string;
-    eyebrow: string;
-    description: string;
-  }>;
+    { value: 'overview', label: 'Resumen' },
+    { value: 'add', label: 'Agregar' },
+    { value: 'subscriptions', label: 'Suscripciones' },
+    { value: 'automation', label: 'Automatizacion' },
+    { value: 'profile', label: 'Perfil' },
+  ] as const satisfies ReadonlyArray<{ value: WorkspaceView; label: string }>;
 
   protected readonly quickModes = [
     { label: 'Gasto', value: 'expense' },
@@ -138,6 +104,7 @@ export class App {
     'Servicios',
     'Otro',
   ];
+
   protected readonly firebaseProjectId = firebaseOptions.projectId;
 
   protected readonly accessStep = computed<AccessStep>(() => {
@@ -145,18 +112,47 @@ export class App {
       return 'auth';
     }
 
-    return this.isProfileComplete(this.profile()) ? 'workspace' : 'profile';
+    if (!this.profile().onboardingCompleted || this.onboardingStayOpen()) {
+      return 'profile';
+    }
+
+    return 'workspace';
   });
 
-  protected readonly currentMonthLabel = computed(() =>
-    new Intl.DateTimeFormat('es-PE', {
-      month: 'long',
-      year: 'numeric',
-    }).format(new Date()),
+  protected readonly authTitle = computed(() =>
+    this.authMode() === 'register' ? 'Crear cuenta' : 'Entrar',
+  );
+
+  protected readonly authPrimaryLabel = computed(() =>
+    this.authMode() === 'register' ? 'Crear con correo' : 'Entrar con correo',
+  );
+
+  protected readonly authBannerText = computed(
+    () => this.authMessage() || this.firebaseAuthError() || this.firebaseAuthNotice(),
+  );
+
+  protected readonly authBannerIsError = computed(() =>
+    Boolean(this.authMessage() || this.firebaseAuthError()),
+  );
+
+  protected readonly profileBannerText = computed(
+    () => this.profileMessage() || this.firebaseAuthError() || this.firebaseAuthNotice(),
+  );
+
+  protected readonly profileBannerIsError = computed(() =>
+    Boolean(this.profileMessage() || this.firebaseAuthError()),
+  );
+
+  protected readonly activeViewMeta = computed(
+    () => this.workspaceNav.find((item) => item.value === this.activeView()) || this.workspaceNav[0],
   );
 
   protected readonly welcomeName = computed(
-    () => this.profile().fullName || this.firebaseUserLabel() || 'tu tablero',
+    () => this.profile().fullName || this.firebaseUserLabel() || 'Tu espacio',
+  );
+
+  protected readonly currentMonthLabel = computed(() =>
+    new Intl.DateTimeFormat('es-PE', { month: 'long', year: 'numeric' }).format(new Date()),
   );
 
   protected readonly currentMonthTransactions = computed(() => {
@@ -165,11 +161,11 @@ export class App {
   });
 
   protected readonly totals = computed(() => {
-    const currentMonth = this.currentMonthTransactions();
-    const income = currentMonth
+    const monthItems = this.currentMonthTransactions();
+    const income = monthItems
       .filter((item) => item.kind === 'income')
       .reduce((sum, item) => sum + item.amount, 0);
-    const expense = currentMonth
+    const expense = monthItems
       .filter((item) => item.kind === 'expense')
       .reduce((sum, item) => sum + item.amount, 0);
 
@@ -189,237 +185,135 @@ export class App {
         continue;
       }
 
-      const current = totalsByCategory.get(item.category) ?? 0;
-      totalsByCategory.set(item.category, current + item.amount);
+      totalsByCategory.set(item.category, (totalsByCategory.get(item.category) ?? 0) + item.amount);
     }
 
     return [...totalsByCategory.entries()]
       .map(([category, total]) => ({ category, total }))
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 6);
+      .sort((left, right) => right.total - left.total)
+      .slice(0, 5);
   });
+
+  protected readonly latestTransactions = computed(() => this.transactions().slice(0, 8));
 
   protected readonly monthlyRunRate = computed(() => {
     const today = new Date();
     const dayOfMonth = Math.max(today.getDate(), 1);
     const monthDays = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-    const currentExpense = this.totals().expense;
-
-    return dayOfMonth ? (currentExpense / dayOfMonth) * monthDays : currentExpense;
+    return dayOfMonth ? (this.totals().expense / dayOfMonth) * monthDays : this.totals().expense;
   });
 
-  protected readonly topCategoryLabel = computed(
-    () => this.categoryBreakdown()[0]?.category || 'Sin categoria dominante',
-  );
-
-  protected readonly visibleTransactions = computed(() => {
-    const search = this.transactionSearch().trim().toLowerCase();
-    const status = this.transactionStatusFilter();
-    const kind = this.transactionKindFilter();
-
-    return [...this.transactions()]
-      .filter((item) => (status === 'all' ? true : item.syncStatus === status))
-      .filter((item) => (kind === 'all' ? true : item.kind === kind))
-      .filter((item) => {
-        if (!search) {
-          return true;
-        }
-
-        return [item.title, item.category, item.account, item.note, item.source]
-          .join(' ')
-          .toLowerCase()
-          .includes(search);
-      })
-      .slice(0, 28);
-  });
-
-  protected readonly latestTransactions = computed(() => this.transactions().slice(0, 6));
+  protected readonly trend = computed(() => this.buildTrend(this.currentMonthTransactions()));
 
   protected readonly activeSubscriptions = computed(() =>
     this.subscriptions().filter((item) => item.status === 'active'),
   );
 
   protected readonly upcomingSubscriptions = computed(() => {
-    const today = new Date();
-    const threshold = new Date();
-    threshold.setDate(today.getDate() + 21);
+    const today = startOfDay(new Date());
+    const limit = startOfDay(new Date());
+    limit.setDate(limit.getDate() + 21);
 
     return this.activeSubscriptions()
       .filter((item) => {
-        const billingDate = new Date(item.nextBillingDate);
-        return billingDate >= startOfDay(today) && billingDate <= endOfDay(threshold);
+        const billingDate = startOfDay(new Date(item.nextBillingDate));
+        return billingDate >= today && billingDate <= limit;
       })
-      .slice(0, 8);
-  });
-
-  protected readonly overdueSubscriptions = computed(() => {
-    const today = startOfDay(new Date());
-    return this.activeSubscriptions().filter((item) => new Date(item.nextBillingDate) < today);
+      .slice(0, 6);
   });
 
   protected readonly subscriptionSummary = computed(() => {
     const active = this.activeSubscriptions();
     const monthlyEquivalent = active.reduce((sum, item) => {
-      const normalizedAmount = Number(item.amount) || 0;
-      return sum + (item.cycle === 'annual' ? normalizedAmount / 12 : normalizedAmount);
+      const amount = Number(item.amount) || 0;
+      return sum + (item.cycle === 'annual' ? amount / 12 : amount);
     }, 0);
 
     return {
       active: active.length,
       paused: this.subscriptions().filter((item) => item.status === 'paused').length,
       monthlyEquivalent,
-      upcoming: this.upcomingSubscriptions().length,
+      nextCount: this.upcomingSubscriptions().length,
     };
   });
 
-  protected readonly syncTargetLabel = computed(() => {
-    const mode = this.settings().syncMode;
-
-    if (mode === 'sheet') {
-      return 'Sheets';
-    }
-
-    if (mode === 'firebase') {
-      return this.hasCloudAccess() ? 'Firestore' : 'Firebase';
-    }
-
-    return 'Local';
-  });
-
-  protected readonly syncSummaryLabel = computed(() => {
-    if (this.settings().syncMode === 'firebase' && this.hasCloudAccess()) {
-      return 'Cloud-first activo';
-    }
-
-    if (this.isSignedIn() && !this.hasCloudAccess()) {
-      return 'Verificacion pendiente';
-    }
-
-    if (this.settings().syncMode === 'sheet') {
-      return 'Salida secundaria en Sheets';
-    }
-
-    return 'Solo cache local';
-  });
-
-  protected readonly automationSummary = computed(() => {
+  protected readonly automationStatus = computed(() => {
     if (!this.firebaseConfigReady()) {
-      return 'Configura Firebase antes de preparar Gmail.';
+      return 'Configura Firebase';
     }
 
     if (!this.isSignedIn()) {
-      return 'Inicia sesion para obtener tu UID y activar automatizaciones.';
+      return 'Inicia sesion';
     }
 
     if (!this.hasCloudAccess()) {
-      return 'Tu cuenta existe, pero debes verificar el correo antes de activar automatizaciones.';
+      return 'Verifica tu correo';
     }
 
-    return 'Tu cuenta ya puede recibir movimientos automáticos desde Apps Script.';
+    return 'Listo para Gmail';
   });
 
-  protected readonly authTitle = computed(() =>
-    this.authMode() === 'register' ? 'Crea tu acceso de equipo' : 'Ingresa a tu tablero financiero',
-  );
-
-  protected readonly authSubtitle = computed(() =>
-    this.authMode() === 'register'
-      ? 'Registra datos basicos, protege el acceso con captcha y deja listo tu espacio personal.'
-      : 'Entra con correo o Google y continua con una experiencia más ordenada por secciones.',
-  );
-
-  protected readonly captchaPrompt = computed(
-    () => `${this.captchaChallenge().left} + ${this.captchaChallenge().right}`,
-  );
-
-  protected readonly radarAlerts = computed(() => {
-    const alerts: { title: string; detail: string }[] = [];
-
-    if (this.totals().pending > 0) {
-      alerts.push({
-        title: 'Tienes pendientes de sync',
-        detail: `${this.totals().pending} movimientos aun esperan salida cloud o sheet.`,
-      });
+  protected readonly cloudSummary = computed(() => {
+    if (!this.firebaseConfigReady()) {
+      return 'Sin Firebase';
     }
 
-    if (this.overdueSubscriptions().length > 0) {
-      alerts.push({
-        title: 'Hay suscripciones vencidas',
-        detail: `${this.overdueSubscriptions().length} cobros ya pasaron su fecha y conviene revisarlos.`,
-      });
+    if (!this.isSignedIn()) {
+      return 'Cuenta cerrada';
     }
 
-    if (this.upcomingSubscriptions().length > 0) {
-      alerts.push({
-        title: 'Se vienen cobros recurrentes',
-        detail: `${this.upcomingSubscriptions().length} suscripciones vencen en los proximos 21 dias.`,
-      });
+    if (!this.hasCloudAccess()) {
+      return 'Falta verificacion';
     }
 
-    if (this.totals().expense > this.totals().income && this.currentMonthTransactions().length > 0) {
-      alerts.push({
-        title: 'Este mes vienes en negativo',
-        detail: 'Los gastos del mes superan a los ingresos registrados hasta hoy.',
-      });
-    }
-
-    if (!alerts.length) {
-      alerts.push({
-        title: 'Tablero estable',
-        detail: 'No hay alertas criticas por ahora. Puedes enfocarte en automatizar más fuentes.',
-      });
-    }
-
-    return alerts.slice(0, 4);
+    return 'Cloud activo';
   });
 
   constructor() {
     this.consumeSharedCapture();
 
     effect(() => {
+      if (!this.isSignedIn()) {
+        this.onboardingStayOpen.set(false);
+      }
+    });
+
+    effect(() => {
       if (this.authLoading()) {
         return;
       }
 
-      const isSignedIn = this.hasCloudAccess();
-      const configReady = this.firebaseConfigReady();
+      const hasCloudAccess = this.hasCloudAccess();
       const currentMode = this.settings().syncMode;
 
-      if (!configReady && currentMode === 'firebase') {
-        this.updateSetting('syncMode', 'local');
-        return;
-      }
+      if (this.lastKnownCloudState === null) {
+        this.lastKnownCloudState = hasCloudAccess;
 
-      if (this.lastKnownAuthState === null) {
-        this.lastKnownAuthState = isSignedIn;
-
-        if (!isSignedIn && currentMode === 'firebase') {
-          this.updateSetting('syncMode', 'local');
-        } else if (isSignedIn && configReady && currentMode === 'local') {
+        if (hasCloudAccess && currentMode === 'local') {
           this.updateSetting('syncMode', 'firebase');
         }
 
         return;
       }
 
-      if (this.lastKnownAuthState === isSignedIn) {
+      if (this.lastKnownCloudState === hasCloudAccess) {
         return;
       }
 
-      this.lastKnownAuthState = isSignedIn;
+      this.lastKnownCloudState = hasCloudAccess;
 
-      if (!isSignedIn && currentMode === 'firebase') {
+      if (!hasCloudAccess && currentMode === 'firebase') {
         this.updateSetting('syncMode', 'local');
-      } else if (isSignedIn && configReady && currentMode === 'local') {
+      } else if (hasCloudAccess && currentMode === 'local') {
         this.updateSetting('syncMode', 'firebase');
       }
     });
 
     effect(() => {
-      const preferred = this.profile().preferredView;
+      const preferredView = this.profile().preferredView;
 
-      if (preferred && preferred !== this.activeView()) {
-        this.activeView.set(preferred);
+      if (preferredView && preferredView !== this.activeView()) {
+        this.activeView.set(preferredView);
       }
     });
 
@@ -438,6 +332,61 @@ export class App {
     });
   }
 
+  protected setAuthMode(mode: 'signin' | 'register'): void {
+    this.authMode.set(mode);
+    this.authMessage.set('');
+    this.refreshCaptcha();
+  }
+
+  protected async signInWithGoogle(): Promise<void> {
+    this.authMessage.set('');
+    await this.firebaseAuthService.signIn();
+  }
+
+  protected async submitEmailAuth(): Promise<void> {
+    if (!this.ensureEmailCaptchaSolved()) {
+      return;
+    }
+
+    if (this.authMode() === 'register') {
+      await this.firebaseAuthService.registerWithEmail('', this.authEmail(), this.authPassword());
+    } else {
+      await this.firebaseAuthService.signInWithEmail(this.authEmail(), this.authPassword());
+    }
+
+    if (!this.firebaseAuthError()) {
+      this.authMessage.set('');
+    }
+  }
+
+  protected async sendVerificationEmail(): Promise<void> {
+    await this.firebaseAuthService.resendVerificationEmail();
+  }
+
+  protected async refreshVerificationState(): Promise<void> {
+    await this.firebaseAuthService.refreshUser();
+  }
+
+  protected async sendPasswordReset(): Promise<void> {
+    await this.firebaseAuthService.sendPasswordReset(this.authEmail() || this.firebaseUserEmail());
+  }
+
+  protected async signOutFromFirebase(): Promise<void> {
+    await this.firebaseAuthService.signOut();
+    this.refreshCaptcha();
+    this.authMessage.set('');
+    this.profileMessage.set('');
+
+    if (this.settings().syncMode === 'firebase') {
+      this.updateSetting('syncMode', 'local');
+    }
+  }
+
+  protected refreshCaptcha(): void {
+    this.captchaChallenge.set(this.createCaptchaChallenge());
+    this.captchaInput.set('');
+  }
+
   protected setActiveView(view: WorkspaceView): void {
     this.activeView.set(view);
     this.store.updateProfile({ preferredView: view });
@@ -448,8 +397,8 @@ export class App {
     this.form.set(this.store.createDraft());
     this.captureFeedback.set(
       this.settings().syncMode === 'firebase' && this.hasCloudAccess()
-        ? 'Movimiento guardado y en cola para Firestore.'
-        : 'Movimiento guardado localmente.',
+        ? 'Movimiento guardado.'
+        : 'Movimiento guardado en local.',
     );
   }
 
@@ -457,16 +406,14 @@ export class App {
     const value = this.captureText().trim();
 
     if (!value) {
-      this.captureFeedback.set('Pega primero un texto de WhatsApp, correo o notificacion.');
+      this.captureFeedback.set('Pega un texto primero.');
       return;
     }
 
     const parsed = this.store.parseCapturedText(value);
 
     if (!parsed) {
-      this.captureFeedback.set(
-        'Ese texto parece una alerta informativa o una operacion rechazada, asi que no se cargo como movimiento.',
-      );
+      this.captureFeedback.set('No pude convertir ese texto en movimiento.');
       return;
     }
 
@@ -481,17 +428,14 @@ export class App {
       source: parsed.source,
       rawText: parsed.rawText,
     });
-    this.captureFeedback.set('Texto interpretado. Revisa y confirma el movimiento.');
+    this.captureFeedback.set('Texto reconocido.');
   }
 
   protected async syncNow(): Promise<void> {
     await this.store.syncPendingTransactions();
   }
 
-  protected updateForm<K extends keyof ReturnType<FinanceStoreService['createDraft']>>(
-    key: K,
-    value: ReturnType<FinanceStoreService['createDraft']>[K],
-  ): void {
+  protected updateForm<K extends keyof TransactionDraft>(key: K, value: TransactionDraft[K]): void {
     this.form.update((current) => ({ ...current, [key]: value }));
   }
 
@@ -503,94 +447,43 @@ export class App {
     this.store.updateProfile({ [key]: value } as Partial<UserProfile>);
   }
 
-  protected updateSubscriptionForm<K extends keyof ReturnType<FinanceStoreService['createSubscriptionDraft']>>(
+  protected updateSubscriptionForm<
+    K extends keyof ReturnType<FinanceStoreService['createSubscriptionDraft']>,
+  >(
     key: K,
     value: ReturnType<FinanceStoreService['createSubscriptionDraft']>[K],
   ): void {
     this.subscriptionForm.update((current) => ({ ...current, [key]: value }));
   }
 
-  protected async signInWithGoogle(): Promise<void> {
-    if (!this.ensureCaptchaSolved()) {
+  protected addSubscription(): void {
+    const draft = this.subscriptionForm();
+
+    if (!draft.name.trim()) {
+      this.subscriptionFeedback.set('Agrega un nombre.');
       return;
     }
 
-    await this.firebaseAuthService.signIn();
-    this.authWallMessage.set('');
-
-    if (this.hasCloudAccess() && this.settings().syncMode === 'local') {
-      this.updateSetting('syncMode', 'firebase');
-    }
-  }
-
-  protected async submitEmailAuth(): Promise<void> {
-    if (!this.ensureCaptchaSolved()) {
+    if (!(Number(draft.amount) > 0)) {
+      this.subscriptionFeedback.set('El monto debe ser mayor a cero.');
       return;
     }
 
-    if (this.authMode() === 'register') {
-      const profileMessage = this.validateProfile({
-        fullName: this.authName(),
-        dni: this.authDni(),
-        phone: this.authPhone(),
-        preferredView: 'overview',
-      });
-
-      if (profileMessage) {
-        this.authWallMessage.set(profileMessage);
-        return;
-      }
-
-      await this.firebaseAuthService.registerWithEmail(
-        this.authName(),
-        this.authEmail(),
-        this.authPassword(),
-      );
-
-      if (this.isSignedIn()) {
-        this.store.updateProfile({
-          fullName: this.authName().trim(),
-          dni: this.sanitizeDni(this.authDni()),
-          phone: this.normalizePhone(this.authPhone()),
-          preferredView: this.activeView(),
-        });
-        this.updateSetting('owner', this.authName().trim());
-      }
-    } else {
-      await this.firebaseAuthService.signInWithEmail(this.authEmail(), this.authPassword());
-    }
-
-    this.authWallMessage.set('');
-
-    if (this.hasCloudAccess() && this.settings().syncMode === 'local') {
-      this.updateSetting('syncMode', 'firebase');
-    }
+    this.store.addSubscription(draft);
+    this.subscriptionForm.set(this.store.createSubscriptionDraft());
+    this.subscriptionFeedback.set('Suscripcion guardada.');
   }
 
-  protected async sendVerificationEmail(): Promise<void> {
-    await this.firebaseAuthService.resendVerificationEmail();
+  protected removeSubscription(id: string): void {
+    this.store.removeSubscription(id);
   }
 
-  protected async refreshVerificationState(): Promise<void> {
-    await this.firebaseAuthService.refreshUser();
-
-    if (this.hasCloudAccess() && this.settings().syncMode === 'local') {
-      this.updateSetting('syncMode', 'firebase');
-    }
+  protected removeTransaction(id: string): void {
+    this.store.removeTransaction(id);
   }
 
-  protected async sendPasswordReset(): Promise<void> {
-    await this.firebaseAuthService.sendPasswordReset(this.authEmail() || this.firebaseUserEmail());
-  }
-
-  protected async signOutFromFirebase(): Promise<void> {
-    await this.firebaseAuthService.signOut();
-    this.refreshCaptcha();
-    this.authWallMessage.set('');
-
-    if (this.settings().syncMode === 'firebase') {
-      this.updateSetting('syncMode', 'local');
-    }
+  protected exportCsv(): void {
+    this.store.exportCsv();
   }
 
   protected setSyncMode(mode: SyncSettings['syncMode']): void {
@@ -601,62 +494,58 @@ export class App {
     this.updateSetting('syncMode', mode);
   }
 
-  protected exportCsv(): void {
-    this.store.exportCsv();
-  }
+  protected saveInitialProfile(): void {
+    const validationMessage = this.validateProfileDraft(this.profile());
 
-  protected removeTransaction(id: string): void {
-    this.store.removeTransaction(id);
-  }
-
-  protected addSubscription(): void {
-    const draft = this.subscriptionForm();
-
-    if (!draft.name.trim()) {
-      this.subscriptionFeedback.set('Ponle nombre a la suscripcion antes de guardarla.');
+    if (validationMessage) {
+      this.profileMessage.set(validationMessage);
       return;
     }
 
-    if (!(Number(draft.amount) > 0)) {
-      this.subscriptionFeedback.set('El monto de la suscripcion debe ser mayor a cero.');
-      return;
-    }
-
-    this.store.addSubscription(draft);
-    this.subscriptionForm.set(this.store.createSubscriptionDraft());
-    this.subscriptionFeedback.set('Suscripcion agregada al calendario de cobros.');
-  }
-
-  protected removeSubscription(id: string): void {
-    this.store.removeSubscription(id);
-  }
-
-  protected setAuthMode(mode: 'signin' | 'register'): void {
-    this.authMode.set(mode);
-    this.authWallMessage.set('');
-  }
-
-  protected refreshCaptcha(): void {
-    this.captchaChallenge.set(this.generateCaptcha());
-    this.captchaAnswer.set('');
-  }
-
-  protected completeProfileSetup(): void {
-    const message = this.validateProfile(this.profile());
-
-    if (message) {
-      this.authWallMessage.set(message);
-      return;
-    }
-
-    const name = this.profile().fullName.trim();
+    this.store.updateProfile({
+      fullName: this.profile().fullName.trim(),
+      dni: this.sanitizeDni(this.profile().dni),
+      phone: this.normalizePhone(this.profile().phone),
+      preferredView: this.profile().preferredView || 'overview',
+      onboardingCompleted: true,
+    });
 
     if (!this.settings().owner || this.settings().owner === 'Mi tablero') {
-      this.updateSetting('owner', name);
+      this.updateSetting('owner', this.profile().fullName.trim());
     }
 
-    this.authWallMessage.set('');
+    this.onboardingStayOpen.set(true);
+    this.profileMessage.set('Datos guardados. Cuando quieras, entra al tablero.');
+  }
+
+  protected enterWorkspaceAfterSetup(): void {
+    if (!this.profile().onboardingCompleted) {
+      this.profileMessage.set('Primero guarda tus datos.');
+      return;
+    }
+
+    this.onboardingStayOpen.set(false);
+    this.profileMessage.set('');
     this.setActiveView(this.profile().preferredView || 'overview');
+  }
+
+  protected saveProfileChanges(): void {
+    const validationMessage = this.validateProfileDraft(this.profile(), false);
+
+    if (validationMessage) {
+      this.profileMessage.set(validationMessage);
+      return;
+    }
+
+    this.store.updateProfile({
+      fullName: this.profile().fullName.trim(),
+      dni: this.sanitizeDni(this.profile().dni),
+      phone: this.normalizePhone(this.profile().phone),
+      preferredView: this.profile().preferredView || 'overview',
+      onboardingCompleted: true,
+    });
+
+    this.profileMessage.set('Perfil actualizado.');
   }
 
   protected describeSubscriptionCadence(item: SubscriptionItem): string {
@@ -667,18 +556,18 @@ export class App {
     const days = this.daysUntil(item.nextBillingDate);
 
     if (days < 0) {
-      return `Vencida hace ${Math.abs(days)} dias`;
+      return `Hace ${Math.abs(days)} d`;
     }
 
     if (days === 0) {
-      return 'Vence hoy';
+      return 'Hoy';
     }
 
     if (days === 1) {
-      return 'Vence mañana';
+      return 'Manana';
     }
 
-    return `Vence en ${days} dias`;
+    return `${days} dias`;
   }
 
   protected describeSubscriptionStatus(item: SubscriptionItem): string {
@@ -703,15 +592,37 @@ export class App {
     }
   }
 
-  protected isCurrentView(view: WorkspaceView): boolean {
-    return this.activeView() === view;
+  protected syncTone(): string {
+    if (this.settings().syncMode === 'firebase' && this.hasCloudAccess()) {
+      return 'ok';
+    }
+
+    if (this.settings().syncMode === 'sheet') {
+      return 'warn';
+    }
+
+    return 'neutral';
   }
 
-  private ensureCaptchaSolved(): boolean {
-    const expected = this.captchaChallenge().left + this.captchaChallenge().right;
+  protected cloudTone(): string {
+    if (!this.firebaseConfigReady()) {
+      return 'warn';
+    }
 
-    if (Number(this.captchaAnswer()) !== expected) {
-      this.authWallMessage.set('Resuelve bien el captcha simple antes de continuar.');
+    if (this.hasCloudAccess()) {
+      return 'ok';
+    }
+
+    if (this.isSignedIn()) {
+      return 'warn';
+    }
+
+    return 'neutral';
+  }
+
+  private ensureEmailCaptchaSolved(): boolean {
+    if (this.captchaInput().trim().toUpperCase() !== this.captchaChallenge().value) {
+      this.authMessage.set('Captcha incorrecto.');
       this.refreshCaptcha();
       return false;
     }
@@ -719,30 +630,34 @@ export class App {
     return true;
   }
 
-  private validateProfile(profile: UserProfile): string {
-    if (!profile.fullName.trim()) {
-      return 'Necesitamos tu nombre o alias para personalizar el tablero.';
-    }
-
-    if (!/^\d{8}$/.test(this.sanitizeDni(profile.dni))) {
-      return 'El DNI debe tener 8 digitos.';
-    }
-
+  private validateProfileDraft(profile: UserProfile, allowPartial = false): string {
+    const fullName = profile.fullName.trim();
+    const dni = this.sanitizeDni(profile.dni);
     const phone = this.normalizePhone(profile.phone);
 
-    if (!/^9\d{8}$/.test(phone)) {
-      return 'El telefono debe ser un celular valido de 9 digitos.';
+    if (!allowPartial || fullName) {
+      if (!fullName) {
+        return 'Completa tu nombre.';
+      }
+    }
+
+    if (!allowPartial || dni) {
+      if (!/^\d{8}$/.test(dni)) {
+        return 'El DNI debe tener 8 digitos.';
+      }
+    }
+
+    if (!allowPartial || phone) {
+      if (!/^9\d{8}$/.test(phone)) {
+        return 'Ingresa un celular valido.';
+      }
     }
 
     return '';
   }
 
-  private isProfileComplete(profile: UserProfile): boolean {
-    return !this.validateProfile(profile);
-  }
-
   private sanitizeDni(value: string): string {
-    return String(value || '').replace(/\D/g, '');
+    return String(value || '').replace(/\D/g, '').slice(0, 8);
   }
 
   private normalizePhone(value: string): string {
@@ -755,18 +670,75 @@ export class App {
     return digits.slice(0, 9);
   }
 
-  private generateCaptcha(): CaptchaChallenge {
+  private createCaptchaChallenge(): CaptchaChallenge {
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let value = '';
+
+    for (let index = 0; index < 5; index += 1) {
+      value += alphabet[Math.floor(Math.random() * alphabet.length)];
+    }
+
     return {
-      left: Math.floor(Math.random() * 8) + 2,
-      right: Math.floor(Math.random() * 8) + 1,
+      value,
+      glyphs: [...value].map((char, index) => ({
+        char,
+        rotate: (Math.random() * 20 - 10) * (index % 2 === 0 ? 1 : -1),
+        offset: Math.random() * 6 - 3,
+        scale: 0.92 + Math.random() * 0.18,
+      })),
     };
   }
 
   private daysUntil(date: string): number {
     const target = startOfDay(new Date(date));
-    const now = startOfDay(new Date());
-    const diffMs = target.getTime() - now.getTime();
-    return Math.round(diffMs / 86400000);
+    const today = startOfDay(new Date());
+    return Math.round((target.getTime() - today.getTime()) / 86400000);
+  }
+
+  private buildTrend(items: Transaction[]): { points: string; labels: string[]; total: number } {
+    const labels: string[] = [];
+    const values: number[] = [];
+    const today = startOfDay(new Date());
+
+    for (let offset = 6; offset >= 0; offset -= 1) {
+      const date = new Date(today);
+      date.setDate(today.getDate() - offset);
+      const key = date.toISOString().slice(0, 10);
+      labels.push(
+        new Intl.DateTimeFormat('es-PE', { weekday: 'short' })
+          .format(date)
+          .replace('.', '')
+          .toUpperCase(),
+      );
+
+      const dayTotal = items.reduce((sum, item) => {
+        if (item.date !== key) {
+          return sum;
+        }
+
+        return sum + (item.kind === 'income' ? item.amount : -item.amount);
+      }, 0);
+
+      values.push(dayTotal);
+    }
+
+    const min = Math.min(...values, 0);
+    const max = Math.max(...values, 0);
+    const range = Math.max(max - min, 1);
+
+    const points = values
+      .map((value, index) => {
+        const x = (index / Math.max(values.length - 1, 1)) * 100;
+        const y = 84 - ((value - min) / range) * 66;
+        return `${x},${y}`;
+      })
+      .join(' ');
+
+    return {
+      points,
+      labels,
+      total: values.reduce((sum, value) => sum + value, 0),
+    };
   }
 
   private consumeSharedCapture(): void {
@@ -796,11 +768,5 @@ export class App {
 function startOfDay(date: Date): Date {
   const normalized = new Date(date);
   normalized.setHours(0, 0, 0, 0);
-  return normalized;
-}
-
-function endOfDay(date: Date): Date {
-  const normalized = new Date(date);
-  normalized.setHours(23, 59, 59, 999);
   return normalized;
 }

@@ -68,6 +68,7 @@ export interface UserProfile {
   dni: string;
   phone: string;
   preferredView: WorkspaceView;
+  onboardingCompleted: boolean;
 }
 
 export interface SubscriptionDraft {

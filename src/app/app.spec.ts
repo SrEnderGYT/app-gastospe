@@ -24,6 +24,6 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('h1')?.textContent).toContain('Finanzas personales');
+    expect(compiled.querySelector('h1')?.textContent).toContain('Tu dinero, claro y en orden');
   });
 });

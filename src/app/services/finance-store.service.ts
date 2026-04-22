@@ -173,6 +173,7 @@ export class FinanceStoreService {
       dni: '',
       phone: '',
       preferredView: 'overview',
+      onboardingCompleted: false,
     };
   }
 
