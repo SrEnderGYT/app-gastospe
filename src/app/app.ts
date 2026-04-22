@@ -101,6 +101,10 @@ export class App {
 
   protected readonly accountOptions = ['Tarjeta', 'Transferencia', 'Efectivo', 'Yape/Plin', 'Otro'];
 
+  constructor() {
+    this.consumeSharedCapture();
+  }
+
   protected submitTransaction(): void {
     this.store.addTransaction(this.form());
     this.form.set(this.store.createDraft());
@@ -154,5 +158,28 @@ export class App {
 
   protected removeTransaction(id: string): void {
     this.store.removeTransaction(id);
+  }
+
+  private consumeSharedCapture(): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const sharedText =
+      params.get('capture') ??
+      params.get('text') ??
+      params.get('body') ??
+      [params.get('title'), params.get('url')].filter(Boolean).join(' ').trim();
+
+    if (!sharedText) {
+      return;
+    }
+
+    this.captureText.set(sharedText);
+    this.parseCapture();
+
+    const cleanedUrl = `${window.location.origin}${window.location.pathname}${window.location.hash}`;
+    window.history.replaceState({}, document.title, cleanedUrl);
   }
 }

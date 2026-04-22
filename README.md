@@ -9,6 +9,7 @@ Aplicacion Angular offline-first para registrar gastos, ingresos y pagos, con al
 - Mantiene una cola de movimientos pendientes cuando no hay internet.
 - Sincroniza por `POST` a un webhook de Google Sheets o a un endpoint de Firebase.
 - Permite pegar texto libre para convertir una notificacion en un movimiento editable.
+- Permite abrir la app con texto precargado desde un enlace o flujo de compartir compatible.
 - Exporta todo a CSV.
 
 ## Arranque local
@@ -44,3 +45,13 @@ Una web local no puede leer por si sola tus notificaciones del iPhone ni tus cha
 - WhatsApp: WhatsApp Business API o un backend autorizado.
 
 Por eso esta primera version resuelve el flujo practico: pegas el texto del mensaje o la notificacion, la app lo interpreta, lo guarda localmente y luego lo sincroniza.
+
+## Flujo rapido con texto compartido
+
+Puedes abrir la app con una captura precargada usando una URL como:
+
+```text
+http://localhost:4200/?capture=Pago%20Yape%20S%2F%2032.50
+```
+
+La app interpreta el texto automaticamente y llena el formulario para que solo confirmes y guardes.

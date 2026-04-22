@@ -6,6 +6,27 @@
   "start_url": "./",
   "theme_color": "#122620",
   "background_color": "#eef4f1",
+  "shortcuts": [
+    {
+      "name": "Nuevo gasto",
+      "short_name": "Gasto",
+      "url": "./?capture=Gasto%20S%2F%200.00"
+    },
+    {
+      "name": "Nuevo ingreso",
+      "short_name": "Ingreso",
+      "url": "./?capture=Ingreso%20S%2F%200.00"
+    }
+  ],
+  "share_target": {
+    "action": "./",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
   "icons": [
     {
       "src": "icons/icon-72x72.png",
