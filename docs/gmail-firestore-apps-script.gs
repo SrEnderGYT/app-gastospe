@@ -6,7 +6,7 @@ const CONFIG = {
   owner: 'Mi tablero',
   processedLabel: 'gastospe-procesado',
   gmailQuery:
-    'newer_than:14d from:notificaciones@notificacionesbcp.com.pe (yapeo OR consumo OR plin OR abono OR deposito)',
+    'newer_than:14d ((from:notificaciones@notificacionesbcp.com.pe) OR from:bbva OR yapeo OR plin OR consumo OR compra OR transferencia OR abono OR deposito) -category:promotions -category:social',
   maxThreads: 25,
 };
 
@@ -104,15 +104,41 @@ function runParserSelfTest() {
         'Tu compra fue rechazada.\nMonto\nImporte de compra\nS/ 200.00',
       expectedIgnored: true,
     },
+    {
+      name: 'bbva_card_purchase',
+      text:
+        'Alerta BBVA\n' +
+        'Se realizo un consumo por S/ 18.50 en TAMBO 2 con tu tarjeta BBVA.\n' +
+        'Importe de la compra\nS/ 18.50',
+      expectedKind: 'expense',
+      expectedTitle: 'Tambo',
+      expectedAmount: 18.5,
+    },
+    {
+      name: 'bbva_transfer_income',
+      text:
+        'Notificacion BBVA\n' +
+        'Recibiste una transferencia por S/ 250.00 de Juan Perez en tu cuenta BBVA.\n' +
+        'Monto abonado\nS/ 250.00',
+      expectedKind: 'income',
+      expectedTitle: 'Juan Perez',
+      expectedAmount: 250,
+    },
   ];
 
   const results = fixtures.map((fixture) => {
     const parsed = buildParsedDraft_(fixture.text, new Date('2026-04-22T00:00:00Z'));
+    const ok = fixture.expectedIgnored
+      ? !parsed
+      : Boolean(parsed) &&
+        parsed.kind === fixture.expectedKind &&
+        parsed.title === fixture.expectedTitle &&
+        parsed.amount === fixture.expectedAmount;
 
     return {
       name: fixture.name,
       parsed: parsed,
-      ok: fixture.expectedIgnored ? !parsed : Boolean(parsed),
+      ok: ok,
     };
   });
 
@@ -246,6 +272,12 @@ function shouldIgnoreTransactionText_(text) {
     /experiencia de pago/i,
     /promo/i,
     /cyber/i,
+    /codigo de verificacion/i,
+    /clave digital/i,
+    /token digital/i,
+    /estado de cuenta/i,
+    /resumen de movimientos/i,
+    /recordatorio de pago/i,
   ].some(function (pattern) {
     return pattern.test(text);
   });
@@ -254,7 +286,14 @@ function shouldIgnoreTransactionText_(text) {
 function extractAmount_(text) {
   const prioritizedPatterns = [
     /monto recibido\s+(?:s\/|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
+    /monto abonado\s+(?:s\/|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
+    /te depositaron\s+(?:s\/|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
+    /recibiste una transferencia(?:\s+por)?\s+(?:s\/|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
+    /transferencia(?:\s+por|\s+de)?\s+(?:s\/|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
     /total del consumo\s+(?:s\/|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
+    /importe de (?:la )?compra\s+(?:s\/|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
+    /compra por\s+(?:s\/|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
+    /consumo por\s+(?:s\/|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
     /realizaste un consumo de\s+(?:s\/|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
     /recibiste un yapeo de\s+(?:s\/|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
   ];
@@ -281,7 +320,9 @@ function normalizeAmount_(rawAmount) {
 }
 
 function inferKind_(text) {
-  return /recibiste un yapeo|monto recibido|abono|deposito|te enviaron|ingreso/i.test(text)
+  return /recibiste un yapeo|monto recibido|monto abonado|abono|deposito|te enviaron|te depositaron|recibiste una transferencia|transferencia recibida|ingreso/i.test(
+    text,
+  )
     ? 'income'
     : 'expense';
 }
@@ -291,7 +332,7 @@ function inferCategory_(text) {
     return 'Ingreso';
   }
 
-  if (/plin|yape/i.test(text)) {
+  if (/plin|yape|transferencia/i.test(text)) {
     return 'Transferencias';
   }
 
@@ -299,7 +340,7 @@ function inferCategory_(text) {
     return 'Transporte';
   }
 
-  if (/rappi|restaurante|cafe|supermercado|comida|almuerzo|menu/i.test(text)) {
+  if (/rappi|restaurante|cafe|supermercado|tambo|comida|almuerzo|menu/i.test(text)) {
     return 'Comida';
   }
 
@@ -323,11 +364,11 @@ function inferAccount_(text) {
     return 'Yape/Plin';
   }
 
-  if (/tarjeta|visa|mastercard|debito|credito/i.test(text)) {
+  if (/tarjeta|visa|mastercard|debito|credito|amex/i.test(text)) {
     return 'Tarjeta';
   }
 
-  if (/transferencia|bcp|interbank|bbva|scotiabank|deposito/i.test(text)) {
+  if (/transferencia|bcp|interbank|bbva|scotiabank|deposito|abono|cuenta ahorro|cuenta corriente/i.test(text)) {
     return 'Transferencia';
   }
 
@@ -337,17 +378,24 @@ function inferAccount_(text) {
 function inferTitle_(text) {
   const companyMatch =
     text.match(/empresa\s+([A-Za-z0-9* .&-]{2,60})/i) ||
-    text.match(/en\s+([A-Za-z0-9* .&-]{2,60})\./i) ||
-    text.match(/en\s+(PLIN-[A-Za-z0-9 .&-]{2,60})/i);
+    text.match(/comercio\s+([A-Za-z0-9* .&-]{2,60})/i) ||
+    text.match(/establecimiento\s+([A-Za-z0-9* .&-]{2,60})/i) ||
+    text.match(/en\s+([A-Za-z0-9* .&-]{2,60}?)(?=\.|\n| con|$)/i) ||
+    text.match(/en\s+(PLIN-[A-Za-z0-9 .&-]{2,60})/i) ||
+    text.match(/consumo por .*? en\s+([A-Za-z0-9* .&-]{2,60}?)(?=\.|\n| con|$)/i);
 
-  if (companyMatch && companyMatch[1]) {
+  if (companyMatch && companyMatch[1] && !/^tu cuenta|^cuenta/i.test(companyMatch[1].trim())) {
     return beautifyCounterparty_(companyMatch[1]);
   }
 
   const senderMatch =
-    text.match(/enviado por\s+([A-Za-z0-9 .&-]{3,80})/i) ||
-    text.match(/recibiste un yapeo de .*? de ([A-Za-z0-9 .&-]{3,80})/i) ||
-    text.match(/(?:a|de|para)\s+([A-Za-z0-9 .&-]{3,80})/i);
+    text.match(/enviado por\s+([A-Za-z0-9 .&-]{3,80}?)(?=\.|\n| en | desde |$)/i) ||
+    text.match(/recibiste un yapeo de .*? de ([A-Za-z0-9 .&-]{3,80}?)(?=\.|\n| en | desde |$)/i) ||
+    text.match(/recibiste una transferencia .*? de ([A-Za-z0-9 .&-]{3,80}?)(?=\.|\n| en | desde |$)/i) ||
+    text.match(/te depositaron .*? de ([A-Za-z0-9 .&-]{3,80}?)(?=\.|\n| en | desde |$)/i) ||
+    text.match(/transferencia .*? a ([A-Za-z0-9 .&-]{3,80}?)(?=\.|\n| en | desde |$)/i) ||
+    text.match(/beneficiario\s+([A-Za-z0-9 .&-]{3,80}?)(?=\.|\n| en | desde |$)/i) ||
+    text.match(/(?:a|de|para)\s+([A-Za-z0-9 .&-]{3,80}?)(?=\.|\n| en | desde |$)/i);
 
   if (senderMatch && senderMatch[1]) {
     return beautifyCounterparty_(senderMatch[1]);
@@ -361,14 +409,20 @@ function beautifyCounterparty_(rawValue) {
     .replace(/^plin-/i, '')
     .replace(/^(pyu|dlc)\*/i, '')
     .replace(/\s+-\s+servicio de notificaciones bcp$/i, '')
+    .replace(/\s+-\s+bbva$/i, '')
+    .replace(/\s+bbva$/i, '')
+    .replace(/[.]+$/g, '')
     .replace(/\s{2,}/g, ' ')
     .trim();
 
   const dictionary = {
     uber: 'Uber',
     'uber rides': 'Uber Rides',
+    'uber trip': 'Uber Trip',
     didi: 'Didi',
     rappi: 'Rappi',
+    'pyu uber': 'Uber',
+    'tambo 2': 'Tambo',
   };
 
   const lower = cleaned.toLowerCase();

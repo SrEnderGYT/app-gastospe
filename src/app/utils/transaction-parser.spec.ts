@@ -100,4 +100,64 @@ describe('parseTransactionText', () => {
 
     expect(parsed).toBeNull();
   });
+
+  it('detects a BBVA card purchase email as an expense', () => {
+    const parsed = parseTransactionText(
+      [
+        'Alerta BBVA',
+        'Se realizo un consumo por S/ 18.50 en TAMBO 2 con tu tarjeta BBVA.',
+        'Importe de la compra',
+        'S/ 18.50',
+      ].join('\n'),
+      { defaultDate: '2026-04-22', defaultSource: 'gmail' },
+    );
+
+    expect(parsed).toMatchObject({
+      kind: 'expense',
+      amount: 18.5,
+      title: 'Tambo',
+      category: 'Comida',
+      account: 'Tarjeta',
+      source: 'gmail',
+      date: '2026-04-22',
+    });
+  });
+
+  it('detects a BBVA incoming transfer as income', () => {
+    const parsed = parseTransactionText(
+      [
+        'Notificacion BBVA',
+        'Recibiste una transferencia por S/ 250.00 de Juan Perez en tu cuenta BBVA.',
+        'Monto abonado',
+        'S/ 250.00',
+      ].join('\n'),
+      { defaultDate: '2026-04-22', defaultSource: 'gmail' },
+    );
+
+    expect(parsed).toMatchObject({
+      kind: 'income',
+      amount: 250,
+      title: 'Juan Perez',
+      category: 'Ingreso',
+      account: 'Transferencia',
+      source: 'gmail',
+      date: '2026-04-22',
+    });
+  });
+
+  it('detects an outgoing transfer notification without needing the web form', () => {
+    const parsed = parseTransactionText(
+      'BBVA: Transferencia por S/ 120.00 a Carlos Perez desde tu cuenta.',
+      { defaultDate: '2026-04-22', defaultSource: 'notification' },
+    );
+
+    expect(parsed).toMatchObject({
+      kind: 'expense',
+      amount: 120,
+      title: 'Carlos Perez',
+      category: 'Transferencias',
+      account: 'Transferencia',
+      source: 'notification',
+    });
+  });
 });

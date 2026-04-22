@@ -113,6 +113,13 @@ Para leer correos de Yape/Plin y enviarlos a Firestore, usa:
 
 - [docs/gmail-firestore-apps-script.gs](docs/gmail-firestore-apps-script.gs)
 
+Este es el flujo recomendado si quieres operar casi sin escribir nada en la web:
+
+- llegan correos de BCP, BBVA, Yape o Plin;
+- Apps Script los revisa en Gmail;
+- Gastospe los registra solo en Firestore;
+- la web queda mas como tablero y respaldo, no como punto de captura principal.
+
 Pasos:
 
 1. Crear un proyecto de Apps Script.
@@ -132,7 +139,9 @@ Pasos:
 El script:
 
 - busca correos recientes de BCP;
+- tambien soporta correos y alertas con texto tipo BBVA;
 - detecta compras, plines y yapeos;
+- detecta transferencias, abonos y depositos;
 - ignora compras rechazadas y correos de configuracion;
 - usa `gmail-${messageId}` como ID estable para evitar duplicados;
 - envia los movimientos a Firebase por HTTPS;
@@ -148,7 +157,7 @@ y pega el webhook en la app.
 
 ## Nota importante sobre iPhone y WhatsApp
 
-Una web no puede leer por si sola tus notificaciones del iPhone ni tus chats de WhatsApp.
+Una web no puede leer por si sola tus notificaciones push del iPhone ni tus chats de WhatsApp personal.
 
 Para automatizar eso de verdad necesitas un puente:
 

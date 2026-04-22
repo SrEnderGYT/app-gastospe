@@ -1,5 +1,15 @@
 # Telefono y WhatsApp
 
+## Modo cero escritura
+
+Si no quieres registrar nada desde la web, el camino mas estable hoy es este:
+
+1. Activa las alertas por correo de tu banco, Yape y Plin.
+2. Deja funcionando `docs/gmail-firestore-apps-script.gs`.
+3. Crea el trigger horario en Apps Script.
+
+Con eso, cuando llegue el correo de BCP, BBVA, Yape o Plin, Gastospe lo procesa solo y lo manda a Firestore sin que escribas en la web.
+
 ## iPhone
 
 1. Abre `https://app-gastospe.web.app` en Safari.
@@ -8,6 +18,8 @@
 4. Abre la app desde el icono para usarla como PWA.
 
 ## Enviar un gasto desde WhatsApp al telefono
+
+Importante: una PWA o web no puede leer por si sola las notificaciones push del iPhone ni los chats de tu WhatsApp personal. Apple y Meta no exponen ese acceso directo a una web.
 
 ### Opcion rapida
 
@@ -47,6 +59,8 @@ La integracion oficial para enviar mensajes automaticos o recibir comandos por W
 - numero de WhatsApp Business
 - webhook publico
 - verificacion del webhook
+
+Eso si permite automatizar mensajes entrantes y salientes, pero no sirve para espiar tu WhatsApp personal existente. Para un flujo 100% automatico hoy, Gmail bancario sigue siendo la ruta mas limpia.
 
 La app ya tiene una base util hoy sin eso:
 

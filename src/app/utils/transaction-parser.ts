@@ -9,6 +9,12 @@ const IGNORABLE_PATTERNS = [
   /promo/i,
   /cyber/i,
   /descuento/i,
+  /codigo de verificacion/i,
+  /clave digital/i,
+  /token digital/i,
+  /estado de cuenta/i,
+  /resumen de movimientos/i,
+  /recordatorio de pago/i,
 ];
 
 const INCOME_PATTERNS = [
@@ -18,10 +24,21 @@ const INCOME_PATTERNS = [
   /abono/i,
   /deposito/i,
   /transferencia recibida/i,
+  /recibiste una transferencia/i,
+  /te depositaron/i,
+  /te abonaron/i,
+  /hemos abonado/i,
   /ingreso/i,
 ];
 
-const PERSON_TO_PERSON_PATTERNS = [/plin/i, /yape/i, /yapeo a celular/i];
+const PERSON_TO_PERSON_PATTERNS = [
+  /plin/i,
+  /yape/i,
+  /yapeo a celular/i,
+  /transferiste/i,
+  /transferencia enviada/i,
+  /enviaste/i,
+];
 
 type ParserOptions = {
   defaultDate?: string;
@@ -73,11 +90,11 @@ function inferAccount(rawText: string): string {
     return 'Yape/Plin';
   }
 
-  if (/tarjeta|visa|mastercard|debito|credito/i.test(rawText)) {
+  if (/tarjeta|visa|mastercard|debito|credito|amex/i.test(rawText)) {
     return 'Tarjeta';
   }
 
-  if (/transferencia|bcp|interbank|bbva|scotiabank|deposito/i.test(rawText)) {
+  if (/transferencia|bcp|interbank|bbva|scotiabank|deposito|abono|cuenta ahorro|cuenta corriente/i.test(rawText)) {
     return 'Transferencia';
   }
 
@@ -89,7 +106,10 @@ function inferCategory(rawText: string, kind: TransactionKind): string {
     return 'Ingreso';
   }
 
-  if (PERSON_TO_PERSON_PATTERNS.some((pattern) => pattern.test(rawText))) {
+  if (
+    PERSON_TO_PERSON_PATTERNS.some((pattern) => pattern.test(rawText)) ||
+    /transferencia/i.test(rawText)
+  ) {
     return 'Transferencias';
   }
 
@@ -97,7 +117,7 @@ function inferCategory(rawText: string, kind: TransactionKind): string {
     return 'Transporte';
   }
 
-  if (/(rappi|restaurante|cafe|supermercado|plaza vea|tottus|wong|metro|comida|almuerzo|menu)/i.test(rawText)) {
+  if (/(rappi|restaurante|cafe|supermercado|plaza vea|tottus|wong|metro|tambo|comida|almuerzo|menu)/i.test(rawText)) {
     return 'Comida';
   }
 
@@ -121,7 +141,11 @@ function inferCategory(rawText: string, kind: TransactionKind): string {
 }
 
 function inferSource(rawText: string): ParsedCapture['source'] {
-  if (/gmail|correo|mail|notificaciones@notificacionesbcp\.com\.pe|servicio de notificaciones bcp/i.test(rawText)) {
+  if (
+    /gmail|correo|mail|notificaciones@notificacionesbcp\.com\.pe|servicio de notificaciones bcp|bbva|alertas bbva/i.test(
+      rawText,
+    )
+  ) {
     return 'gmail';
   }
 
@@ -135,17 +159,24 @@ function inferSource(rawText: string): ParsedCapture['source'] {
 function inferTitle(rawText: string, kind: TransactionKind): string {
   const companyMatch =
     rawText.match(/empresa\s+([A-Za-z0-9* .&-]{2,60})/i) ||
-    rawText.match(/en\s+([A-Za-z0-9* .&-]{2,60})\./i) ||
-    rawText.match(/en\s+(PLIN-[A-Za-z0-9 .&-]{2,60})/i);
+    rawText.match(/comercio\s+([A-Za-z0-9* .&-]{2,60})/i) ||
+    rawText.match(/establecimiento\s+([A-Za-z0-9* .&-]{2,60})/i) ||
+    rawText.match(/en\s+([A-Za-z0-9* .&-]{2,60}?)(?=\.|\n| con|$)/i) ||
+    rawText.match(/en\s+(PLIN-[A-Za-z0-9 .&-]{2,60})/i) ||
+    rawText.match(/consumo por .*? en\s+([A-Za-z0-9* .&-]{2,60}?)(?=\.|\n| con|$)/i);
 
-  if (companyMatch?.[1]) {
+  if (companyMatch?.[1] && !/^tu cuenta|^cuenta/i.test(companyMatch[1].trim())) {
     return beautifyCounterparty(companyMatch[1]);
   }
 
   const senderMatch =
-    rawText.match(/enviado por\s+([A-Za-z0-9 .&-]{3,80})/i) ||
-    rawText.match(/recibiste un yapeo de .*? de ([A-Za-z0-9 .&-]{3,80})/i) ||
-    rawText.match(/(?:a|de|para)\s+([A-Za-z0-9 .&-]{3,80})/i);
+    rawText.match(/enviado por\s+([A-Za-z0-9 .&-]{3,80}?)(?=\.|\n| en | desde |$)/i) ||
+    rawText.match(/recibiste un yapeo de .*? de ([A-Za-z0-9 .&-]{3,80}?)(?=\.|\n| en | desde |$)/i) ||
+    rawText.match(/recibiste una transferencia .*? de ([A-Za-z0-9 .&-]{3,80}?)(?=\.|\n| en | desde |$)/i) ||
+    rawText.match(/te depositaron .*? de ([A-Za-z0-9 .&-]{3,80}?)(?=\.|\n| en | desde |$)/i) ||
+    rawText.match(/transferencia .*? a ([A-Za-z0-9 .&-]{3,80}?)(?=\.|\n| en | desde |$)/i) ||
+    rawText.match(/beneficiario\s+([A-Za-z0-9 .&-]{3,80}?)(?=\.|\n| en | desde |$)/i) ||
+    rawText.match(/(?:a|de|para)\s+([A-Za-z0-9 .&-]{3,80}?)(?=\.|\n| en | desde |$)/i);
 
   if (senderMatch?.[1]) {
     return beautifyCounterparty(senderMatch[1]);
@@ -157,7 +188,14 @@ function inferTitle(rawText: string, kind: TransactionKind): string {
 function extractAmount(rawText: string): number | null {
   const prioritizedPatterns = [
     /monto recibido\s+(?:s\/|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
+    /monto abonado\s+(?:s\/|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
+    /te depositaron\s+(?:s\/|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
+    /recibiste una transferencia(?:\s+por)?\s+(?:s\/|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
+    /transferencia(?:\s+por|\s+de)?\s+(?:s\/|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
     /total del consumo\s+(?:s\/|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
+    /importe de (?:la )?compra\s+(?:s\/|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
+    /compra por\s+(?:s\/|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
+    /consumo por\s+(?:s\/|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
     /realizaste un consumo de\s+(?:s\/|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
     /recibiste un yapeo de\s+(?:s\/|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
   ];
@@ -188,14 +226,20 @@ function beautifyCounterparty(rawValue: string): string {
     .replace(/^plin-/i, '')
     .replace(/^(pyu|dlc)\*/i, '')
     .replace(/\s+-\s+servicio de notificaciones bcp$/i, '')
+    .replace(/\s+-\s+bbva$/i, '')
+    .replace(/\s+bbva$/i, '')
+    .replace(/[.]+$/g, '')
     .replace(/\s{2,}/g, ' ')
     .trim();
 
   const dictionary: Record<string, string> = {
     'uber': 'Uber',
     'uber rides': 'Uber Rides',
+    'uber trip': 'Uber Trip',
     'didi': 'Didi',
     'rappi': 'Rappi',
+    'pyu uber': 'Uber',
+    'tambo 2': 'Tambo',
   };
 
   const lower = cleaned.toLowerCase();
