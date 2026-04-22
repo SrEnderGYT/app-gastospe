@@ -2,7 +2,7 @@ import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { firebaseOptions } from './firebase/firebase.options';
-import { SyncSettings } from './models/finance.models';
+import { SyncSettings, SyncStatus, TransactionKind } from './models/finance.models';
 import { FirebaseAuthService } from './services/firebase-auth.service';
 import { FinanceStoreService } from './services/finance-store.service';
 
@@ -21,16 +21,22 @@ export class App {
   protected readonly settings = this.store.settings;
   protected readonly online = this.store.online;
   protected readonly syncState = this.store.syncState;
+  protected readonly cloudState = this.store.cloudState;
+  protected readonly deletedTransactionIds = this.store.deletedTransactionIds;
   protected readonly captureText = signal('');
   protected readonly captureFeedback = signal('');
+  protected readonly transactionSearch = signal('');
+  protected readonly transactionStatusFilter = signal<'all' | SyncStatus>('all');
+  protected readonly transactionKindFilter = signal<'all' | TransactionKind>('all');
 
   protected readonly firebaseConfigReady = this.firebaseAuthService.configReady;
   protected readonly authLoading = this.firebaseAuthService.loading;
   protected readonly isSignedIn = this.firebaseAuthService.isSignedIn;
   protected readonly firebaseUserLabel = this.firebaseAuthService.displayName;
   protected readonly firebaseUserEmail = this.firebaseAuthService.email;
+  protected readonly firebaseUserId = this.firebaseAuthService.uid;
   protected readonly firebaseAuthError = this.firebaseAuthService.error;
-  protected readonly firebaseFunctionUrl = this.firebaseAuthService.functionUrl;
+  protected readonly firebaseAutomationUrl = this.firebaseAuthService.automationFunctionUrl;
 
   protected readonly form = signal(this.store.createDraft());
 
@@ -41,9 +47,13 @@ export class App {
     }).format(new Date()),
   );
 
-  protected readonly totals = computed(() => {
+  protected readonly currentMonthTransactions = computed(() => {
     const monthKey = new Date().toISOString().slice(0, 7);
-    const currentMonth = this.transactions().filter((item) => item.date.startsWith(monthKey));
+    return this.transactions().filter((item) => item.date.startsWith(monthKey));
+  });
+
+  protected readonly totals = computed(() => {
+    const currentMonth = this.currentMonthTransactions();
     const income = currentMonth
       .filter((item) => item.kind === 'income')
       .reduce((sum, item) => sum + item.amount, 0);
@@ -60,11 +70,10 @@ export class App {
   });
 
   protected readonly categoryBreakdown = computed(() => {
-    const monthKey = new Date().toISOString().slice(0, 7);
     const totalsByCategory = new Map<string, number>();
 
-    for (const item of this.transactions()) {
-      if (!item.date.startsWith(monthKey) || item.kind !== 'expense') {
+    for (const item of this.currentMonthTransactions()) {
+      if (item.kind !== 'expense') {
         continue;
       }
 
@@ -75,27 +84,79 @@ export class App {
     return [...totalsByCategory.entries()]
       .map(([category, total]) => ({ category, total }))
       .sort((a, b) => b.total - a.total)
-      .slice(0, 5);
+      .slice(0, 6);
   });
 
-  protected readonly recentTransactions = computed(() =>
-    [...this.transactions()]
-      .sort((a, b) => (a.date < b.date ? 1 : -1))
-      .slice(0, 8),
+  protected readonly monthlyRunRate = computed(() => {
+    const today = new Date();
+    const dayOfMonth = Math.max(today.getDate(), 1);
+    const monthDays = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const currentExpense = this.totals().expense;
+
+    return dayOfMonth ? (currentExpense / dayOfMonth) * monthDays : currentExpense;
+  });
+
+  protected readonly topCategoryLabel = computed(
+    () => this.categoryBreakdown()[0]?.category || 'Sin categoria dominante',
   );
+
+  protected readonly visibleTransactions = computed(() => {
+    const search = this.transactionSearch().trim().toLowerCase();
+    const status = this.transactionStatusFilter();
+    const kind = this.transactionKindFilter();
+
+    return [...this.transactions()]
+      .filter((item) => (status === 'all' ? true : item.syncStatus === status))
+      .filter((item) => (kind === 'all' ? true : item.kind === kind))
+      .filter((item) => {
+        if (!search) {
+          return true;
+        }
+
+        return [item.title, item.category, item.account, item.note, item.source]
+          .join(' ')
+          .toLowerCase()
+          .includes(search);
+      })
+      .slice(0, 24);
+  });
 
   protected readonly syncTargetLabel = computed(() => {
     const mode = this.settings().syncMode;
 
     if (mode === 'sheet') {
-      return 'Google Sheets por webhook';
+      return 'Sheets';
     }
 
     if (mode === 'firebase') {
-      return this.isSignedIn() ? 'Firebase + Firestore' : 'Firebase pendiente';
+      return this.isSignedIn() ? 'Firestore' : 'Firebase';
     }
 
-    return 'Solo local';
+    return 'Local';
+  });
+
+  protected readonly syncSummaryLabel = computed(() => {
+    if (this.settings().syncMode === 'firebase' && this.isSignedIn()) {
+      return 'Cloud-first activo';
+    }
+
+    if (this.settings().syncMode === 'sheet') {
+      return 'Salida secundaria en Sheets';
+    }
+
+    return 'Solo cache local';
+  });
+
+  protected readonly automationSummary = computed(() => {
+    if (!this.firebaseConfigReady()) {
+      return 'Configura Firebase antes de preparar Gmail.';
+    }
+
+    if (!this.isSignedIn()) {
+      return 'Inicia sesion para obtener tu UID y activar automatizaciones.';
+    }
+
+    return 'Tu cuenta ya puede recibir movimientos desde Apps Script.';
   });
 
   protected readonly quickModes = [
@@ -166,8 +227,8 @@ export class App {
     this.form.set(this.store.createDraft());
     this.captureFeedback.set(
       this.settings().syncMode === 'firebase' && this.isSignedIn()
-        ? 'Movimiento guardado localmente y en cola para Firestore.'
-        : 'Movimiento guardado localmente y listo para sincronizar.',
+        ? 'Movimiento guardado y en cola para Firestore.'
+        : 'Movimiento guardado localmente.',
     );
   }
 
@@ -175,7 +236,7 @@ export class App {
     const value = this.captureText().trim();
 
     if (!value) {
-      this.captureFeedback.set('Pega primero un texto de WhatsApp o una notificacion.');
+      this.captureFeedback.set('Pega primero un texto de WhatsApp, correo o notificacion.');
       return;
     }
 
@@ -191,7 +252,7 @@ export class App {
       source: parsed.source,
       rawText: parsed.rawText,
     });
-    this.captureFeedback.set('Texto interpretado. Revisa los campos y guarda.');
+    this.captureFeedback.set('Texto interpretado. Revisa y confirma el movimiento.');
   }
 
   protected async syncNow(): Promise<void> {

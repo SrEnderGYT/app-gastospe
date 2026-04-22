@@ -1,9 +1,8 @@
-import { computed, Injectable, signal } from '@angular/core';
-import { initializeApp } from 'firebase/app';
+import { computed, Injectable, inject, signal } from '@angular/core';
 import {
   GoogleAuthProvider,
   browserLocalPersistence,
-  getAuth,
+  getRedirectResult,
   onAuthStateChanged,
   setPersistence,
   signInWithPopup,
@@ -11,28 +10,19 @@ import {
   signOut,
   type User,
 } from 'firebase/auth';
-import { firebaseConfigReady, firebaseOptions } from '../firebase/firebase.options';
+import { firebaseOptions } from '../firebase/firebase.options';
+import { FirebasePlatformService } from './firebase-platform.service';
 
 @Injectable({ providedIn: 'root' })
 export class FirebaseAuthService {
-  private readonly app = firebaseConfigReady
-    ? initializeApp({
-        apiKey: firebaseOptions.apiKey,
-        authDomain: firebaseOptions.authDomain,
-        projectId: firebaseOptions.projectId,
-        storageBucket: firebaseOptions.storageBucket,
-        messagingSenderId: firebaseOptions.messagingSenderId,
-        appId: firebaseOptions.appId,
-      })
-    : null;
+  private readonly firebasePlatform = inject(FirebasePlatformService);
+  private readonly auth = this.firebasePlatform.auth;
 
-  private readonly auth = this.app ? getAuth(this.app) : null;
-
-  readonly configReady = signal(firebaseConfigReady);
-  readonly loading = signal(firebaseConfigReady);
+  readonly configReady = this.firebasePlatform.configReady;
+  readonly loading = signal(this.configReady());
   readonly user = signal<User | null>(null);
   readonly error = signal(
-    firebaseConfigReady
+    this.configReady()
       ? ''
       : 'Completa src/app/firebase/firebase.options.ts con la configuracion Web App de Firebase.',
   );
@@ -41,9 +31,15 @@ export class FirebaseAuthService {
   readonly canSync = computed(() => this.configReady() && this.isSignedIn());
   readonly displayName = computed(() => this.user()?.displayName || this.user()?.email || 'Sesion activa');
   readonly email = computed(() => this.user()?.email || '');
-  readonly functionUrl = computed(() =>
+  readonly uid = computed(() => this.user()?.uid || '');
+  readonly syncFunctionUrl = computed(() =>
     this.configReady()
       ? `https://${firebaseOptions.functionsRegion}-${firebaseOptions.projectId}.cloudfunctions.net/syncTransactions`
+      : '',
+  );
+  readonly automationFunctionUrl = computed(() =>
+    this.configReady()
+      ? `https://${firebaseOptions.functionsRegion}-${firebaseOptions.projectId}.cloudfunctions.net/ingestAutomationTransactions`
       : '',
   );
 
@@ -57,6 +53,13 @@ export class FirebaseAuthService {
 
     void setPersistence(auth, browserLocalPersistence)
       .catch(() => undefined)
+      .then(async () => {
+        try {
+          await getRedirectResult(auth);
+        } catch (error) {
+          this.error.set(this.describeAuthError(error));
+        }
+      })
       .finally(() => {
         onAuthStateChanged(auth, (user) => {
           this.user.set(user);
@@ -80,7 +83,7 @@ export class FirebaseAuthService {
     try {
       await signInWithPopup(this.auth, provider);
     } catch (error) {
-      const code = typeof error === 'object' && error && 'code' in error ? String(error.code) : '';
+      const code = this.resolveErrorCode(error);
 
       if (
         code === 'auth/popup-blocked' ||
@@ -91,7 +94,7 @@ export class FirebaseAuthService {
         return;
       }
 
-      this.error.set(error instanceof Error ? error.message : 'No se pudo iniciar sesion con Google.');
+      this.error.set(this.describeAuthError(error));
     } finally {
       this.loading.set(false);
     }
@@ -120,5 +123,30 @@ export class FirebaseAuthService {
     }
 
     return `Bearer ${await this.auth.currentUser.getIdToken()}`;
+  }
+
+  private describeAuthError(error: unknown): string {
+    const code = this.resolveErrorCode(error);
+    const currentDomain =
+      typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.host}` : '';
+
+    switch (code) {
+      case 'auth/configuration-not-found':
+        return `Firebase Auth respondio configuration-not-found. Habilita Google en Authentication > Sign-in method y revisa que ${currentDomain || 'tu dominio actual'} figure en dominios autorizados.`;
+      case 'auth/unauthorized-domain':
+        return `El dominio ${currentDomain || 'actual'} no esta autorizado en Firebase Authentication. Agregalo en Authentication > Settings > Authorized domains.`;
+      case 'auth/popup-closed-by-user':
+        return 'Se cerro la ventana de Google antes de completar el inicio de sesion.';
+      case 'auth/popup-blocked':
+        return 'El navegador bloqueo la ventana emergente. Intentalo otra vez o permite popups para esta web.';
+      case 'auth/network-request-failed':
+        return 'Hubo un problema de red al iniciar sesion con Google.';
+      default:
+        return error instanceof Error ? error.message : 'No se pudo iniciar sesion con Google.';
+    }
+  }
+
+  private resolveErrorCode(error: unknown): string {
+    return typeof error === 'object' && error && 'code' in error ? String(error.code) : '';
   }
 }

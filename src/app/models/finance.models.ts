@@ -1,5 +1,5 @@
 export type TransactionKind = 'expense' | 'income';
-export type CaptureSource = 'manual' | 'notification' | 'whatsapp';
+export type CaptureSource = 'manual' | 'notification' | 'whatsapp' | 'gmail';
 export type SyncMode = 'local' | 'sheet' | 'firebase';
 export type SyncStatus = 'pending' | 'synced' | 'failed';
 
@@ -20,6 +20,11 @@ export interface Transaction extends TransactionDraft {
   createdAt: string;
   syncStatus: SyncStatus;
   syncMessage?: string;
+  owner?: string;
+  syncMode?: SyncMode;
+  exportedAt?: string;
+  syncedAt?: string;
+  uid?: string;
 }
 
 export interface SyncSettings {

@@ -1,5 +1,6 @@
-import { computed, effect, inject, Injectable, signal } from '@angular/core';
+import { computed, effect, inject, Injectable, signal, untracked } from '@angular/core';
 import { FirebaseAuthService } from './firebase-auth.service';
+import { FirebaseTransactionsService } from './firebase-transactions.service';
 import {
   ParsedCapture,
   SyncPayload,
@@ -10,20 +11,40 @@ import {
   TransactionKind,
 } from '../models/finance.models';
 
-const TRANSACTIONS_KEY = 'gastospe.transactions.v1';
-const SETTINGS_KEY = 'gastospe.settings.v1';
+const TRANSACTIONS_KEY = 'gastospe.transactions.v2';
+const SETTINGS_KEY = 'gastospe.settings.v2';
+const DELETED_TRANSACTIONS_KEY = 'gastospe.deleted-transactions.v1';
+
+type SyncState = {
+  syncing: boolean;
+  lastAttempt: string;
+  lastMessage: string;
+};
+
+type CloudState = {
+  connected: boolean;
+  lastPulledAt: string;
+  lastMessage: string;
+};
 
 @Injectable({ providedIn: 'root' })
 export class FinanceStoreService {
   private readonly firebaseAuth = inject(FirebaseAuthService);
+  private readonly firebaseTransactions = inject(FirebaseTransactionsService);
 
   readonly transactions = signal<Transaction[]>(this.loadTransactions());
   readonly settings = signal<SyncSettings>(this.loadSettings());
+  readonly deletedTransactionIds = signal<string[]>(this.loadDeletedTransactionIds());
   readonly online = signal(this.resolveOnline());
-  readonly syncState = signal({
+  readonly syncState = signal<SyncState>({
     syncing: false,
     lastAttempt: '',
     lastMessage: 'Todavia no hubo sincronizacion.',
+  });
+  readonly cloudState = signal<CloudState>({
+    connected: false,
+    lastPulledAt: '',
+    lastMessage: 'Firestore aun no esta conectado.',
   });
 
   readonly pendingTransactions = computed(() =>
@@ -32,16 +53,21 @@ export class FinanceStoreService {
 
   constructor() {
     effect(() => {
-      localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(this.transactions()));
+      this.saveJson(TRANSACTIONS_KEY, this.transactions());
     });
 
     effect(() => {
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(this.settings()));
+      this.saveJson(SETTINGS_KEY, this.settings());
+    });
+
+    effect(() => {
+      this.saveJson(DELETED_TRANSACTIONS_KEY, this.deletedTransactionIds());
     });
 
     if (typeof window !== 'undefined') {
       window.addEventListener('online', () => {
         this.online.set(true);
+
         if (this.settings().autoSync) {
           void this.syncPendingTransactions();
         }
@@ -49,6 +75,53 @@ export class FinanceStoreService {
 
       window.addEventListener('offline', () => this.online.set(false));
     }
+
+    effect((onCleanup) => {
+      if (!this.firebaseAuth.isSignedIn() || !this.firebaseAuth.configReady()) {
+        this.cloudState.set({
+          connected: false,
+          lastPulledAt: untracked(() => this.cloudState().lastPulledAt),
+          lastMessage: this.firebaseAuth.configReady()
+            ? 'Inicia sesion con Google para leer Firestore.'
+            : 'Completa Firebase para activar la nube.',
+        });
+        return;
+      }
+
+      const unsubscribe = this.firebaseTransactions.watchTransactions(
+        (remoteTransactions) => {
+          this.mergeRemoteTransactions(remoteTransactions);
+          this.cloudState.set({
+            connected: true,
+            lastPulledAt: new Date().toISOString(),
+            lastMessage: remoteTransactions.length
+              ? `${remoteTransactions.length} movimientos visibles en Firestore.`
+              : 'Firestore conectado. Aun no hay movimientos remotos.',
+          });
+        },
+        (message) => {
+          this.cloudState.set({
+            connected: false,
+            lastPulledAt: untracked(() => this.cloudState().lastPulledAt),
+            lastMessage: message,
+          });
+        },
+      );
+
+      if (unsubscribe) {
+        onCleanup(unsubscribe);
+      }
+    });
+
+    effect(() => {
+      if (!this.settings().autoSync || !this.online()) {
+        return;
+      }
+
+      if (this.pendingTransactions().length || this.deletedTransactionIds().length) {
+        void this.syncPendingTransactions();
+      }
+    });
   }
 
   createDraft(): TransactionDraft {
@@ -87,7 +160,7 @@ export class FinanceStoreService {
       syncMessage: 'Pendiente',
     };
 
-    this.transactions.update((items) => [transaction, ...items]);
+    this.transactions.update((items) => this.sortTransactions([transaction, ...items]));
 
     if (this.settings().autoSync && this.online()) {
       void this.syncPendingTransactions();
@@ -96,6 +169,14 @@ export class FinanceStoreService {
 
   removeTransaction(id: string): void {
     this.transactions.update((items) => items.filter((item) => item.id !== id));
+
+    if (this.firebaseAuth.isSignedIn() && this.firebaseAuth.configReady()) {
+      this.deletedTransactionIds.update((items) => (items.includes(id) ? items : [...items, id]));
+
+      if (this.settings().autoSync && this.online()) {
+        void this.syncPendingTransactions();
+      }
+    }
   }
 
   updateSettings(patch: Partial<SyncSettings>): void {
@@ -127,7 +208,11 @@ export class FinanceStoreService {
       category,
       account,
       note: normalized,
-      source: /(whatsapp|wsp)/i.test(lower) ? 'whatsapp' : 'notification',
+      source: /(gmail|correo|mail)/i.test(lower)
+        ? 'gmail'
+        : /(whatsapp|wsp)/i.test(lower)
+          ? 'whatsapp'
+          : 'notification',
       date: new Date().toISOString().slice(0, 10),
       rawText: normalized,
     };
@@ -135,9 +220,10 @@ export class FinanceStoreService {
 
   async syncPendingTransactions(): Promise<void> {
     const pending = this.pendingTransactions();
+    const deletions = this.deletedTransactionIds();
     const settings = this.settings();
 
-    if (!pending.length) {
+    if (!pending.length && !deletions.length) {
       this.syncState.set({
         syncing: false,
         lastAttempt: new Date().toISOString(),
@@ -150,7 +236,7 @@ export class FinanceStoreService {
       this.syncState.set({
         syncing: false,
         lastAttempt: new Date().toISOString(),
-        lastMessage: 'Sin conexion: los movimientos siguen guardados localmente.',
+        lastMessage: 'Sin conexion: tus cambios siguen guardados localmente.',
       });
       return;
     }
@@ -159,7 +245,7 @@ export class FinanceStoreService {
       this.syncState.set({
         syncing: false,
         lastAttempt: new Date().toISOString(),
-        lastMessage: 'Modo local activo. Exporta CSV o inicia sesion para sincronizar.',
+        lastMessage: 'Modo local activo. Exporta CSV, usa Sheets o inicia sesion para la nube.',
       });
       return;
     }
@@ -168,7 +254,7 @@ export class FinanceStoreService {
       this.syncState.set({
         syncing: false,
         lastAttempt: new Date().toISOString(),
-        lastMessage: 'Falta configurar la Web App de Firebase para activar la nube.',
+        lastMessage: 'Falta configurar la Web App de Firebase.',
       });
       return;
     }
@@ -188,41 +274,61 @@ export class FinanceStoreService {
       lastAttempt: new Date().toISOString(),
     }));
 
-    const result =
-      settings.syncMode === 'sheet'
-        ? await this.sendToSheet({
-            source: 'gastospe-web',
-            exportedAt: new Date().toISOString(),
+    const messages: string[] = [];
+    let success = true;
+
+    if (pending.length) {
+      const payload: SyncPayload = {
+        source: 'gastospe-web',
+        exportedAt: new Date().toISOString(),
+        owner: settings.owner,
+        syncMode: settings.syncMode,
+        transactions: pending,
+      };
+
+      const result =
+        settings.syncMode === 'sheet'
+          ? await this.sendToSheet(payload)
+          : await this.firebaseTransactions.syncTransactions(payload);
+
+      this.transactions.update((items) =>
+        items.map((item) => {
+          if (!pending.some((pendingItem) => pendingItem.id === item.id)) {
+            return item;
+          }
+
+          return {
+            ...item,
             owner: settings.owner,
             syncMode: settings.syncMode,
-            transactions: pending,
-          })
-        : await this.sendToFirebase({
-            source: 'gastospe-web',
-            exportedAt: new Date().toISOString(),
-            owner: settings.owner,
-            syncMode: settings.syncMode,
-            transactions: pending,
-          });
+            exportedAt: payload.exportedAt,
+            syncedAt: result.success ? new Date().toISOString() : item.syncedAt,
+            uid: this.firebaseAuth.uid() || item.uid,
+            syncStatus: result.success ? 'synced' : 'failed',
+            syncMessage: result.message,
+          };
+        }),
+      );
 
-    this.transactions.update((items) =>
-      items.map((item) => {
-        if (!pending.some((pendingItem) => pendingItem.id === item.id)) {
-          return item;
-        }
+      success = success && result.success;
+      messages.push(result.message);
+    }
 
-        return {
-          ...item,
-          syncStatus: result.success ? 'synced' : 'failed',
-          syncMessage: result.message,
-        };
-      }),
-    );
+    if (settings.syncMode === 'firebase' && deletions.length) {
+      const deleteResult = await this.firebaseTransactions.deleteTransactions(deletions);
+
+      if (deleteResult.success) {
+        this.deletedTransactionIds.set([]);
+      }
+
+      success = success && deleteResult.success;
+      messages.push(deleteResult.message);
+    }
 
     this.syncState.set({
       syncing: false,
       lastAttempt: new Date().toISOString(),
-      lastMessage: result.message,
+      lastMessage: messages.join(' ') || (success ? 'Sincronizacion completa.' : 'No se pudo sincronizar.'),
     });
   }
 
@@ -277,34 +383,12 @@ export class FinanceStoreService {
     return this.postJson(url, payload, 'Movimientos enviados a Google Sheets.');
   }
 
-  private async sendToFirebase(payload: SyncPayload): Promise<SyncResult> {
-    const authorization = await this.firebaseAuth.getAuthorizationHeader();
-    const url = this.firebaseAuth.functionUrl();
-
-    if (!authorization || !url) {
-      return {
-        success: false,
-        message: 'La sesion de Firebase no esta lista para sincronizar.',
-      };
-    }
-
-    return this.postJson(url, payload, 'Movimientos enviados a Firestore.', {
-      Authorization: authorization,
-    });
-  }
-
-  private async postJson(
-    url: string,
-    payload: SyncPayload,
-    successMessage: string,
-    extraHeaders: Record<string, string> = {},
-  ): Promise<SyncResult> {
+  private async postJson(url: string, payload: SyncPayload, successMessage: string): Promise<SyncResult> {
     try {
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...extraHeaders,
         },
         body: JSON.stringify(payload),
       });
@@ -328,88 +412,33 @@ export class FinanceStoreService {
     }
   }
 
+  private mergeRemoteTransactions(remoteTransactions: Transaction[]): void {
+    const deletedIds = new Set(this.deletedTransactionIds());
+    const visibleRemoteTransactions = remoteTransactions.filter((item) => !deletedIds.has(item.id));
+    const remoteIds = new Set(visibleRemoteTransactions.map((item) => item.id));
+
+    const localUnsyncedTransactions = this.transactions().filter(
+      (item) => item.syncStatus !== 'synced' && !remoteIds.has(item.id) && !deletedIds.has(item.id),
+    );
+
+    this.transactions.set(
+      this.sortTransactions([...visibleRemoteTransactions, ...localUnsyncedTransactions]),
+    );
+  }
+
   private loadTransactions(): Transaction[] {
-    const raw = localStorage.getItem(TRANSACTIONS_KEY);
-
-    if (!raw) {
-      return this.seedTransactions();
-    }
-
-    try {
-      return JSON.parse(raw) as Transaction[];
-    } catch {
-      return this.seedTransactions();
-    }
+    const raw = this.readJson<Transaction[]>(TRANSACTIONS_KEY);
+    return Array.isArray(raw) ? raw : [];
   }
 
   private loadSettings(): SyncSettings {
-    const raw = localStorage.getItem(SETTINGS_KEY);
-
-    if (!raw) {
-      return this.defaultSettings();
-    }
-
-    try {
-      return { ...this.defaultSettings(), ...(JSON.parse(raw) as Partial<SyncSettings>) };
-    } catch {
-      return this.defaultSettings();
-    }
+    const raw = this.readJson<Partial<SyncSettings>>(SETTINGS_KEY);
+    return { ...this.defaultSettings(), ...(raw || {}) };
   }
 
-  private seedTransactions(): Transaction[] {
-    const today = new Date();
-    const asDate = (delta: number) => {
-      const date = new Date(today);
-      date.setDate(date.getDate() - delta);
-      return date.toISOString().slice(0, 10);
-    };
-
-    return [
-      {
-        id: this.createId(),
-        kind: 'expense',
-        title: 'Supermercado',
-        amount: 148.2,
-        category: 'Comida',
-        date: asDate(0),
-        account: 'Tarjeta',
-        note: 'Compra semanal',
-        source: 'manual',
-        createdAt: new Date().toISOString(),
-        syncStatus: 'pending',
-        syncMessage: 'Pendiente',
-      },
-      {
-        id: this.createId(),
-        kind: 'expense',
-        title: 'Spotify',
-        amount: 24.9,
-        category: 'Suscripciones',
-        date: asDate(2),
-        account: 'Tarjeta',
-        note: 'Renovacion mensual',
-        source: 'notification',
-        rawText: 'Se realizo el cobro de Spotify por S/ 24.90',
-        createdAt: new Date().toISOString(),
-        syncStatus: 'synced',
-        syncMessage: 'Sincronizado',
-      },
-      {
-        id: this.createId(),
-        kind: 'income',
-        title: 'Pago de cliente',
-        amount: 820,
-        category: 'Ingreso',
-        date: asDate(4),
-        account: 'Transferencia',
-        note: 'Transferencia recibida',
-        source: 'whatsapp',
-        rawText: 'Cliente confirmo pago por S/ 820',
-        createdAt: new Date().toISOString(),
-        syncStatus: 'pending',
-        syncMessage: 'Pendiente',
-      },
-    ];
+  private loadDeletedTransactionIds(): string[] {
+    const raw = this.readJson<string[]>(DELETED_TRANSACTIONS_KEY);
+    return Array.isArray(raw) ? raw.filter((item) => typeof item === 'string') : [];
   }
 
   private inferTitle(rawText: string, kind: TransactionKind): string {
@@ -441,7 +470,7 @@ export class FinanceStoreService {
     if (/(netflix|spotify|icloud|subscription|suscripcion)/i.test(text)) {
       return 'Suscripciones';
     }
-    if (/(restaurante|cafe|super|plaza vea|tottus|wong|metro|comida)/i.test(text)) {
+    if (/(restaurante|cafe|super|plaza vea|tottus|wong|metro|comida|almuerzo|menu)/i.test(text)) {
       return 'Comida';
     }
     if (/(ripley|saga|zara|h&m|compra)/i.test(text)) {
@@ -474,5 +503,43 @@ export class FinanceStoreService {
 
   private resolveOnline(): boolean {
     return typeof navigator !== 'undefined' ? navigator.onLine : true;
+  }
+
+  private readJson<T>(key: string): T | null {
+    if (typeof localStorage === 'undefined') {
+      return null;
+    }
+
+    const raw = localStorage.getItem(key);
+
+    if (!raw) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(raw) as T;
+    } catch {
+      return null;
+    }
+  }
+
+  private saveJson(key: string, value: unknown): void {
+    if (typeof localStorage === 'undefined') {
+      return;
+    }
+
+    localStorage.setItem(key, JSON.stringify(value));
+  }
+
+  private sortTransactions(items: Transaction[]): Transaction[] {
+    return [...items].sort((left, right) => {
+      const dateCompare = right.date.localeCompare(left.date);
+
+      if (dateCompare !== 0) {
+        return dateCompare;
+      }
+
+      return (right.createdAt || '').localeCompare(left.createdAt || '');
+    });
   }
 }

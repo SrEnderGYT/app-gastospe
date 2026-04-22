@@ -7,6 +7,7 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
+    "firebase:doctor": "node scripts/firebase-doctor.mjs",
     "firebase:build": "ng build",
     "firebase:login": "npx firebase-tools login",
     "firebase:login:list": "npx firebase-tools login:list",

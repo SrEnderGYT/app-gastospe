@@ -1,88 +1,109 @@
 <div class="shell">
   <main class="page">
-    <section class="hero">
-      <div class="hero-top">
-        <span class="eyebrow">Offline first</span>
-        <span class="sync-chip">{{ syncTargetLabel() }}</span>
-      </div>
-
-      <div class="hero-copy">
-        <h1>Tus finanzas, incluso cuando no tienes red.</h1>
-        <p>
-          Registra gastos, ingresos y pagos desde el celular o la compu, pega texto de notificaciones
-          o de WhatsApp, y sincroniza despues con Google Sheets o Firebase.
+    <header class="app-header">
+      <div class="brand-block">
+        <p class="kicker">Gastospe</p>
+        <h1>Control diario de tus gastos, ingresos y automatizaciones.</h1>
+        <p class="subtitle">
+          Registra movimientos desde el celular o la compu, trabaja offline y sincroniza con
+          Firestore o Google Sheets cuando vuelvas a tener red.
         </p>
       </div>
 
-      <div class="hero-grid">
-        <article class="metric balance">
-          <span>Balance de {{ currentMonthLabel() }}</span>
-          <strong>{{ totals().balance | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</strong>
-          <span class="mini-note">Ingresos menos egresos del mes actual</span>
-        </article>
-
-        <article class="metric">
-          <span>Ingresos</span>
-          <strong>{{ totals().income | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</strong>
-          <span class="mini-note">Flujo positivo acumulado</span>
-        </article>
-
-        <article class="metric">
-          <span>Gastos</span>
-          <strong>{{ totals().expense | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</strong>
-          <span class="mini-note">Salidas registradas</span>
-        </article>
-
-        <article class="metric">
-          <span>Pendientes</span>
-          <strong>{{ totals().pending }}</strong>
-          <span class="mini-note">Movimientos aun no sincronizados</span>
-        </article>
-      </div>
-
-      <div class="status-bar">
-        <div class="row-inline">
-          <span class="status" [class.offline]="!online()">
+      <div class="header-stack">
+        <div class="status-cluster">
+          <span class="chip" [class.offline]="!online()">
             {{ online() ? 'Con conexion' : 'Sin conexion' }}
           </span>
-          <span class="muted">{{ syncState().lastMessage }}</span>
+          <span class="chip neutral">{{ syncSummaryLabel() }}</span>
+          <span class="chip" [class.warning]="!cloudState().connected && isSignedIn()">
+            {{ cloudState().connected ? 'Firestore conectado' : 'Cloud en espera' }}
+          </span>
         </div>
 
         <div class="actions">
           @if (isSignedIn()) {
-            <button class="ghost-button" type="button" (click)="signOutFromFirebase()">Salir de Firebase</button>
+            <button class="ghost-button" type="button" (click)="signOutFromFirebase()">
+              Salir de Google
+            </button>
           } @else {
             <button
-              class="ghost-button"
+              class="secondary-button"
               type="button"
               [disabled]="!firebaseConfigReady() || authLoading()"
               (click)="signInWithGoogle()"
             >
-              Entrar con Google
+              {{ authLoading() ? 'Abriendo Google...' : 'Entrar con Google' }}
             </button>
           }
 
           <button class="ghost-button" type="button" (click)="exportCsv()">Exportar CSV</button>
-          <button
-            class="secondary-button"
-            type="button"
-            [disabled]="syncState().syncing"
-            (click)="syncNow()"
-          >
+          <button class="primary-button" type="button" [disabled]="syncState().syncing" (click)="syncNow()">
             {{ syncState().syncing ? 'Sincronizando...' : 'Sincronizar ahora' }}
           </button>
         </div>
       </div>
+    </header>
+
+    <section class="summary-band">
+      <article class="stat-tile accent">
+        <span class="stat-label">Balance de {{ currentMonthLabel() }}</span>
+        <strong>{{ totals().balance | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</strong>
+        <p>Resultado neto del mes actual.</p>
+      </article>
+
+      <article class="stat-tile">
+        <span class="stat-label">Ingresos</span>
+        <strong>{{ totals().income | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</strong>
+        <p>Entradas registradas en el mes.</p>
+      </article>
+
+      <article class="stat-tile">
+        <span class="stat-label">Gastos</span>
+        <strong>{{ totals().expense | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</strong>
+        <p>Salidas registradas en el mes.</p>
+      </article>
+
+      <article class="stat-tile">
+        <span class="stat-label">Pendientes</span>
+        <strong>{{ totals().pending }}</strong>
+        <p>{{ deletedTransactionIds().length }} eliminaciones en cola cloud.</p>
+      </article>
+
+      <article class="stat-tile">
+        <span class="stat-label">Run rate</span>
+        <strong>{{ monthlyRunRate() | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</strong>
+        <p>Proyeccion de gasto si mantienes el ritmo actual.</p>
+      </article>
+
+      <article class="stat-tile">
+        <span class="stat-label">Categoria dominante</span>
+        <strong>{{ topCategoryLabel() }}</strong>
+        <p>Mayor peso en tus egresos del mes.</p>
+      </article>
     </section>
 
-    <section class="workspace">
-      <div class="panel-stack">
-        <section class="panel">
-          <div class="section-header">
+    <section class="notice-row">
+      <div class="info-line">
+        <strong>Sync</strong>
+        <span>{{ syncState().lastMessage }}</span>
+      </div>
+
+      <div class="info-line" [class.error]="firebaseAuthError()">
+        <strong>Cloud</strong>
+        <span>{{ firebaseAuthError() || cloudState().lastMessage }}</span>
+      </div>
+    </section>
+
+    <section class="layout">
+      <div class="main-column">
+        <section class="section">
+          <div class="section-heading">
             <div>
-              <p class="section-label">Nuevo movimiento</p>
-              <h2 class="section-title">Carga manual</h2>
+              <p class="section-label">Registro diario</p>
+              <h2>Nuevo movimiento</h2>
             </div>
+
             <div class="toggle">
               @for (mode of quickModes; track mode.value) {
                 <button
@@ -96,118 +117,113 @@
             </div>
           </div>
 
-          <form class="panel-stack" (ngSubmit)="submitTransaction()">
-            <div class="grid-2">
-              <div class="field">
-                <label for="title">Titulo</label>
-                <input
-                  id="title"
-                  name="title"
-                  [ngModel]="form().title"
-                  (ngModelChange)="updateForm('title', $event)"
-                  placeholder="Ej. Supermercado, sueldo, taxi"
-                  required
-                />
-              </div>
-
-              <div class="field">
-                <label for="amount">Monto</label>
-                <input
-                  id="amount"
-                  name="amount"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  [ngModel]="form().amount"
-                  (ngModelChange)="updateForm('amount', +$event)"
-                  required
-                />
-              </div>
-            </div>
-
-            <div class="grid-2">
-              <div class="field">
-                <label for="category">Categoria</label>
-                <select
-                  id="category"
-                  name="category"
-                  [ngModel]="form().category"
-                  (ngModelChange)="updateForm('category', $event)"
-                >
-                  @for (category of categories; track category) {
-                    <option [value]="category">{{ category }}</option>
-                  }
-                </select>
-              </div>
-
-              <div class="field">
-                <label for="account">Cuenta o medio</label>
-                <select
-                  id="account"
-                  name="account"
-                  [ngModel]="form().account"
-                  (ngModelChange)="updateForm('account', $event)"
-                >
-                  @for (account of accountOptions; track account) {
-                    <option [value]="account">{{ account }}</option>
-                  }
-                </select>
-              </div>
-            </div>
-
-            <div class="grid-2">
-              <div class="field">
-                <label for="date">Fecha</label>
-                <input
-                  id="date"
-                  name="date"
-                  type="date"
-                  [ngModel]="form().date"
-                  (ngModelChange)="updateForm('date', $event)"
-                />
-              </div>
-
-              <div class="field">
-                <label for="source">Origen</label>
-                <select
-                  id="source"
-                  name="source"
-                  [ngModel]="form().source"
-                  (ngModelChange)="updateForm('source', $event)"
-                >
-                  <option value="manual">Manual</option>
-                  <option value="notification">Notificacion</option>
-                  <option value="whatsapp">WhatsApp</option>
-                </select>
-              </div>
+          <form class="form-grid" (ngSubmit)="submitTransaction()">
+            <div class="field field-span-2">
+              <label for="title">Titulo</label>
+              <input
+                id="title"
+                name="title"
+                [ngModel]="form().title"
+                (ngModelChange)="updateForm('title', $event)"
+                placeholder="Ej. Supermercado, sueldo, taxi, pago recibido"
+                required
+              />
             </div>
 
             <div class="field">
+              <label for="amount">Monto</label>
+              <input
+                id="amount"
+                name="amount"
+                type="number"
+                min="0"
+                step="0.01"
+                [ngModel]="form().amount"
+                (ngModelChange)="updateForm('amount', +$event)"
+                required
+              />
+            </div>
+
+            <div class="field">
+              <label for="date">Fecha</label>
+              <input
+                id="date"
+                name="date"
+                type="date"
+                [ngModel]="form().date"
+                (ngModelChange)="updateForm('date', $event)"
+              />
+            </div>
+
+            <div class="field">
+              <label for="category">Categoria</label>
+              <select
+                id="category"
+                name="category"
+                [ngModel]="form().category"
+                (ngModelChange)="updateForm('category', $event)"
+              >
+                @for (category of categories; track category) {
+                  <option [value]="category">{{ category }}</option>
+                }
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="account">Cuenta o medio</label>
+              <select
+                id="account"
+                name="account"
+                [ngModel]="form().account"
+                (ngModelChange)="updateForm('account', $event)"
+              >
+                @for (account of accountOptions; track account) {
+                  <option [value]="account">{{ account }}</option>
+                }
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="source">Origen</label>
+              <select
+                id="source"
+                name="source"
+                [ngModel]="form().source"
+                (ngModelChange)="updateForm('source', $event)"
+              >
+                <option value="manual">Manual</option>
+                <option value="notification">Notificacion</option>
+                <option value="whatsapp">WhatsApp</option>
+                <option value="gmail">Gmail</option>
+              </select>
+            </div>
+
+            <div class="field field-span-2">
               <label for="note">Nota</label>
               <textarea
                 id="note"
                 name="note"
                 [ngModel]="form().note"
                 (ngModelChange)="updateForm('note', $event)"
-                placeholder="Detalle opcional, numero de cuota, comentario, recordatorio"
+                placeholder="Detalle opcional, comentario, cuota, remitente, comprobante"
               ></textarea>
             </div>
 
-            <div class="actions">
+            <div class="section-actions field-span-2">
               <button class="primary-button" type="submit">Guardar movimiento</button>
             </div>
           </form>
         </section>
 
-        <section class="panel">
-          <div class="section-header">
+        <section class="section">
+          <div class="section-heading">
             <div>
               <p class="section-label">Captura rapida</p>
-              <h2 class="section-title">Pegar texto de notificacion o WhatsApp</h2>
+              <h2>Pegar texto de WhatsApp, Gmail o notificacion</h2>
             </div>
           </div>
 
-          <div class="panel-stack">
+          <div class="capture-layout">
             <div class="field">
               <label for="capture">Texto detectado</label>
               <textarea
@@ -215,181 +231,271 @@
                 name="capture"
                 [ngModel]="captureText()"
                 (ngModelChange)="captureText.set($event)"
-                placeholder="Ej. Se realizo el pago en Rappi por S/ 39.90 con tu tarjeta..."
+                placeholder="Ej. Transferiste por Yape S/ 32.50 a Ana por almuerzo"
               ></textarea>
             </div>
 
-            <div class="actions">
-              <button class="secondary-button" type="button" (click)="parseCapture()">Interpretar texto</button>
+            <div class="capture-side">
+              <button class="secondary-button full-button" type="button" (click)="parseCapture()">
+                Interpretar texto
+              </button>
+
+              @if (captureFeedback()) {
+                <div class="info-line">{{ captureFeedback() }}</div>
+              }
+
+              <div class="compact-note">
+                <strong>Uso rapido</strong>
+                <p>Puedes compartir texto a la PWA o abrirla con <code>?capture=...</code>.</p>
+              </div>
+
+              <div class="compact-note">
+                <strong>Fase Gmail</strong>
+                <p>El parser ya reconoce correos, notificaciones y texto manual para no perder movimientos.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-heading">
+            <div>
+              <p class="section-label">Historial</p>
+              <h2>Movimientos recientes</h2>
+            </div>
+          </div>
+
+          <div class="filter-bar">
+            <div class="field compact-field search-field">
+              <label for="search">Buscar</label>
+              <input
+                id="search"
+                name="search"
+                [ngModel]="transactionSearch()"
+                (ngModelChange)="transactionSearch.set($event)"
+                placeholder="Titulo, nota, categoria, origen"
+              />
             </div>
 
-            @if (captureFeedback()) {
-              <div class="info-line">{{ captureFeedback() }}</div>
-            }
+            <div class="field compact-field">
+              <label for="kindFilter">Tipo</label>
+              <select
+                id="kindFilter"
+                name="kindFilter"
+                [ngModel]="transactionKindFilter()"
+                (ngModelChange)="transactionKindFilter.set($event)"
+              >
+                <option value="all">Todos</option>
+                <option value="expense">Gastos</option>
+                <option value="income">Ingresos</option>
+              </select>
+            </div>
 
-            <p class="help">
-              En iPhone y WhatsApp no existe una integracion local directa desde el navegador sin permisos
-              especiales. Este bloque te deja capturar el texto rapidamente y convertirlo en un movimiento.
-            </p>
-
-            <p class="help">
-              Tambien puedes abrir la PWA con un texto en la URL, por ejemplo:
-              <code>?capture=Pago%20Uber%20S%2F%2028.50</code>
-            </p>
+            <div class="field compact-field">
+              <label for="statusFilter">Estado</label>
+              <select
+                id="statusFilter"
+                name="statusFilter"
+                [ngModel]="transactionStatusFilter()"
+                (ngModelChange)="transactionStatusFilter.set($event)"
+              >
+                <option value="all">Todos</option>
+                <option value="pending">Pendiente</option>
+                <option value="synced">Sincronizado</option>
+                <option value="failed">Fallido</option>
+              </select>
+            </div>
           </div>
+
+          @if (visibleTransactions().length) {
+            <div class="transaction-list">
+              @for (item of visibleTransactions(); track item.id) {
+                <article class="transaction-row">
+                  <div class="transaction-main">
+                    <div class="transaction-title-row">
+                      <strong>{{ item.title }}</strong>
+                      <span
+                        class="amount"
+                        [class.expense]="item.kind === 'expense'"
+                        [class.income]="item.kind === 'income'"
+                      >
+                        {{ item.kind === 'expense' ? '-' : '+' }}
+                        {{ item.amount | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}
+                      </span>
+                    </div>
+
+                    <p class="transaction-meta">
+                      {{ item.category }} | {{ item.account }} | {{ item.source }} |
+                      {{ item.date | date: 'dd MMM yyyy' : '' : 'es-PE' }}
+                    </p>
+
+                    @if (item.note) {
+                      <p class="transaction-note">{{ item.note }}</p>
+                    }
+                  </div>
+
+                  <div class="transaction-side">
+                    <span class="pill" [class.expense]="item.kind === 'expense'" [class.income]="item.kind === 'income'">
+                      {{ item.kind === 'expense' ? 'Gasto' : 'Ingreso' }}
+                    </span>
+                    <span class="pill" [class.pending]="item.syncStatus === 'pending'" [class.synced]="item.syncStatus === 'synced'" [class.failed]="item.syncStatus === 'failed'">
+                      {{ item.syncStatus }}
+                    </span>
+                    <button type="button" class="danger-button" (click)="removeTransaction(item.id)">
+                      Eliminar
+                    </button>
+                  </div>
+                </article>
+              }
+            </div>
+          } @else {
+            <div class="empty-state">
+              <p>No hay movimientos que coincidan con los filtros actuales.</p>
+            </div>
+          }
         </section>
       </div>
 
-      <div class="panel-stack">
-        <section class="panel">
-          <div class="section-header">
+      <aside class="side-column">
+        <section class="section">
+          <div class="section-heading">
             <div>
-              <p class="section-label">Sincronizacion</p>
-              <h2 class="section-title">Destino de datos</h2>
+              <p class="section-label">Configuracion cloud</p>
+              <h2>Sincronizacion y cuenta</h2>
             </div>
           </div>
 
-          <div class="panel-stack">
+          <div class="field">
+            <label for="owner">Nombre del tablero</label>
+            <input
+              id="owner"
+              name="owner"
+              [ngModel]="settings().owner"
+              (ngModelChange)="updateSetting('owner', $event)"
+            />
+          </div>
+
+          <div class="grid-2">
             <div class="field">
-              <label for="owner">Nombre del tablero</label>
-              <input
-                id="owner"
-                name="owner"
-                [ngModel]="settings().owner"
-                (ngModelChange)="updateSetting('owner', $event)"
-              />
-            </div>
-
-            <div class="grid-2">
-              <div class="field">
-                <label for="currency">Moneda</label>
-                <select
-                  id="currency"
-                  name="currency"
-                  [ngModel]="settings().currency"
-                  (ngModelChange)="updateSetting('currency', $event)"
-                >
-                  <option value="PEN">PEN</option>
-                  <option value="USD">USD</option>
-                  <option value="EUR">EUR</option>
-                </select>
-              </div>
-
-              <div class="field">
-                <label>Modo de sync</label>
-                <div class="segmented">
-                  <button
-                    type="button"
-                    [class.active]="settings().syncMode === 'local'"
-                    (click)="setSyncMode('local')"
-                  >
-                    Local
-                  </button>
-                  <button
-                    type="button"
-                    [class.active]="settings().syncMode === 'sheet'"
-                    (click)="setSyncMode('sheet')"
-                  >
-                    Sheets
-                  </button>
-                  <button
-                    type="button"
-                    [class.active]="settings().syncMode === 'firebase'"
-                    [disabled]="!firebaseConfigReady()"
-                    (click)="setSyncMode('firebase')"
-                  >
-                    Firebase
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div class="field auth-card">
-              <label>Cuenta Firebase</label>
-
-              @if (!firebaseConfigReady()) {
-                <div class="info-line error">
-                  Falta completar <code>src/app/firebase/firebase.options.ts</code> con la Web App de
-                  Firebase del proyecto <strong>{{ firebaseProjectId }}</strong>.
-                </div>
-              } @else if (isSignedIn()) {
-                <div class="info-line">
-                  <strong>{{ firebaseUserLabel() }}</strong>
-                  <span>{{ firebaseUserEmail() }}</span>
-                </div>
-                <p class="help">Function objetivo: <code>{{ firebaseFunctionUrl() }}</code></p>
-              } @else {
-                <div class="info-line">
-                  Firebase esta listo, pero todavia no has iniciado sesion con Google.
-                </div>
-              }
-
-              @if (firebaseAuthError()) {
-                <div class="info-line error">{{ firebaseAuthError() }}</div>
-              }
-
-              <div class="actions">
-                @if (isSignedIn()) {
-                  <button class="ghost-button" type="button" (click)="signOutFromFirebase()">
-                    Cerrar sesion
-                  </button>
-                } @else {
-                  <button
-                    class="secondary-button"
-                    type="button"
-                    [disabled]="!firebaseConfigReady() || authLoading()"
-                    (click)="signInWithGoogle()"
-                  >
-                    {{ authLoading() ? 'Abriendo Google...' : 'Entrar con Google' }}
-                  </button>
-                }
-              </div>
+              <label for="currency">Moneda</label>
+              <select
+                id="currency"
+                name="currency"
+                [ngModel]="settings().currency"
+                (ngModelChange)="updateSetting('currency', $event)"
+              >
+                <option value="PEN">PEN</option>
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+              </select>
             </div>
 
             <div class="field">
-              <label for="sheetUrl">Webhook de Google Sheets</label>
-              <input
-                id="sheetUrl"
-                name="sheetUrl"
-                [ngModel]="settings().sheetWebhookUrl"
-                (ngModelChange)="updateSetting('sheetWebhookUrl', $event)"
-                placeholder="https://script.google.com/macros/s/..."
-              />
-            </div>
-
-            <div class="toggle-group">
-              <span class="muted">Auto sync al volver la red</span>
-              <div class="toggle">
+              <label>Modo de sync</label>
+              <div class="segmented">
                 <button
                   type="button"
-                  [class.active]="settings().autoSync"
-                  (click)="updateSetting('autoSync', true)"
+                  [class.active]="settings().syncMode === 'local'"
+                  (click)="setSyncMode('local')"
                 >
-                  Activo
+                  Local
                 </button>
                 <button
                   type="button"
-                  [class.active]="!settings().autoSync"
-                  (click)="updateSetting('autoSync', false)"
+                  [class.active]="settings().syncMode === 'sheet'"
+                  (click)="setSyncMode('sheet')"
                 >
-                  Pausado
+                  Sheets
+                </button>
+                <button
+                  type="button"
+                  [class.active]="settings().syncMode === 'firebase'"
+                  [disabled]="!firebaseConfigReady()"
+                  (click)="setSyncMode('firebase')"
+                >
+                  Firestore
                 </button>
               </div>
             </div>
+          </div>
 
-            @if (syncState().lastMessage.includes('Falta') || syncState().lastMessage.includes('respondio') || syncState().lastMessage.includes('Inicia')) {
-              <div class="info-line error">{{ syncState().lastMessage }}</div>
+          <div class="field">
+            <label for="sheetUrl">Webhook de Google Sheets</label>
+            <input
+              id="sheetUrl"
+              name="sheetUrl"
+              [ngModel]="settings().sheetWebhookUrl"
+              (ngModelChange)="updateSetting('sheetWebhookUrl', $event)"
+              placeholder="https://script.google.com/macros/s/..."
+            />
+          </div>
+
+          <div class="toggle-row">
+            <div>
+              <strong>Auto sync</strong>
+              <p>Reintenta al volver la red o al iniciar sesion.</p>
+            </div>
+
+            <div class="toggle">
+              <button
+                type="button"
+                [class.active]="settings().autoSync"
+                (click)="updateSetting('autoSync', true)"
+              >
+                Activo
+              </button>
+              <button
+                type="button"
+                [class.active]="!settings().autoSync"
+                (click)="updateSetting('autoSync', false)"
+              >
+                Pausado
+              </button>
+            </div>
+          </div>
+
+          <div class="stacked-info">
+            @if (!firebaseConfigReady()) {
+              <div class="info-line error">
+                Completa la Web App de Firebase del proyecto <strong>{{ firebaseProjectId }}</strong>.
+              </div>
+            } @else if (isSignedIn()) {
+              <div class="info-line">
+                <strong>{{ firebaseUserLabel() }}</strong>
+                <span>{{ firebaseUserEmail() }}</span>
+                <span>UID: <code>{{ firebaseUserId() }}</code></span>
+              </div>
             } @else {
-              <div class="info-line">{{ syncState().lastMessage }}</div>
+              <div class="info-line">Firebase esta listo, pero todavia no has iniciado sesion.</div>
             }
+
+            <div class="info-line">
+              <strong>Estado actual</strong>
+              <span>{{ syncTargetLabel() }} | {{ cloudState().lastMessage }}</span>
+            </div>
           </div>
         </section>
 
-        <section class="panel">
-          <div class="section-header">
+        <section class="section">
+          <div class="section-heading">
             <div>
               <p class="section-label">Analitica</p>
-              <h2 class="section-title">Categorias del mes</h2>
+              <h2>Lectura del mes</h2>
+            </div>
+          </div>
+
+          <div class="metric-list">
+            <div class="metric-row">
+              <span>Categoria con mas peso</span>
+              <strong>{{ topCategoryLabel() }}</strong>
+            </div>
+            <div class="metric-row">
+              <span>Run rate proyectado</span>
+              <strong>{{ monthlyRunRate() | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</strong>
+            </div>
+            <div class="metric-row">
+              <span>Movimientos del mes</span>
+              <strong>{{ currentMonthTransactions().length }}</strong>
             </div>
           </div>
 
@@ -397,92 +503,67 @@
             <div class="category-list">
               @for (item of categoryBreakdown(); track item.category) {
                 <article class="category-item">
-                  <div class="row-inline">
+                  <div class="category-row">
                     <strong>{{ item.category }}</strong>
                     <span>{{ item.total | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</span>
                   </div>
                   <div class="bar">
-                    <span [style.width.%]="(item.total / totals().expense) * 100"></span>
+                    <span [style.width.%]="totals().expense ? (item.total / totals().expense) * 100 : 0"></span>
                   </div>
                 </article>
               }
             </div>
           } @else {
-            <div class="empty">
-              <p>Todavia no hay suficientes egresos este mes para mostrar categorias.</p>
+            <div class="empty-state">
+              <p>Aun no hay egresos suficientes este mes para mostrar categorias.</p>
             </div>
           }
         </section>
 
-        <section class="panel">
-          <div class="section-header">
+        <section class="section">
+          <div class="section-heading">
             <div>
-              <p class="section-label">Movimientos</p>
-              <h2 class="section-title">Ultimos registros</h2>
+              <p class="section-label">Automatizacion</p>
+              <h2>Gmail y Apps Script</h2>
             </div>
           </div>
 
-          @if (recentTransactions().length) {
-            <div class="transaction-list">
-              @for (item of recentTransactions(); track item.id) {
-                <article class="list-item">
-                  <div class="item-head">
-                    <div>
-                      <strong>{{ item.title }}</strong>
-                      <p>{{ item.category }} · {{ item.account }} · {{ item.date | date: 'dd MMM' : '' : 'es-PE' }}</p>
-                    </div>
-                    <div class="row-inline">
-                      <span class="pill" [class.expense]="item.kind === 'expense'" [class.income]="item.kind === 'income'">
-                        {{ item.kind === 'expense' ? 'Gasto' : 'Ingreso' }}
-                      </span>
-                      <span class="amount" [class.expense]="item.kind === 'expense'" [class.income]="item.kind === 'income'">
-                        {{ item.kind === 'expense' ? '-' : '+' }}
-                        {{ item.amount | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div class="row-inline">
-                    <span class="pill" [class.pending]="item.syncStatus === 'pending'" [class.synced]="item.syncStatus === 'synced'" [class.failed]="item.syncStatus === 'failed'">
-                      {{ item.syncStatus }}
-                    </span>
-                    <span class="muted">{{ item.source }}</span>
-                  </div>
-
-                  @if (item.note) {
-                    <p>{{ item.note }}</p>
-                  }
-
-                  <div class="item-actions">
-                    <button type="button" (click)="removeTransaction(item.id)">Eliminar</button>
-                  </div>
-                </article>
-              }
+          <div class="stacked-info">
+            <div class="info-line">
+              <strong>Estado</strong>
+              <span>{{ automationSummary() }}</span>
             </div>
-          } @else {
-            <div class="empty">
-              <p>No hay movimientos todavia.</p>
-            </div>
-          }
-        </section>
 
-        <section class="panel notes">
-          <div class="section-header">
-            <div>
-              <p class="section-label">Implementacion real</p>
-              <h2 class="section-title">Como conectarlo con tu flujo</h2>
+            <div class="metric-list compact-metrics">
+              <div class="metric-row">
+                <span>Proyecto</span>
+                <strong>{{ firebaseProjectId }}</strong>
+              </div>
+              <div class="metric-row">
+                <span>UID destino</span>
+                <strong>{{ firebaseUserId() || 'Inicia sesion' }}</strong>
+              </div>
+            </div>
+
+            @if (firebaseConfigReady()) {
+              <div class="compact-note">
+                <strong>Endpoint de ingestion</strong>
+                <p><code>{{ firebaseAutomationUrl() }}</code></p>
+              </div>
+            }
+
+            <div class="compact-note">
+              <strong>Archivo listo</strong>
+              <p>Usa <code>docs/gmail-firestore-apps-script.gs</code> para leer correos Yape/Plin y enviarlos a Firebase.</p>
+            </div>
+
+            <div class="compact-note">
+              <strong>Capas activas</strong>
+              <p>Gmail por Apps Script, Firestore como base cloud y PWA como captura offline-first.</p>
             </div>
           </div>
-
-          <ul class="bullet">
-            <li>Google Sheets sigue disponible como salida opcional por webhook.</li>
-            <li>Firebase ahora queda pensado como base principal con Google Login + Firestore.</li>
-            <li>iPhone: para automatizar notificaciones reales, lo ideal es Atajos + webhook o una API intermedia.</li>
-            <li>WhatsApp: para lectura automatica necesitas WhatsApp Business API o un backend autorizado.</li>
-            <li>PWA share target: desde accesos directos o flujos compatibles puedes compartir texto directo a la app.</li>
-          </ul>
         </section>
-      </div>
+      </aside>
     </section>
   </main>
 </div>
