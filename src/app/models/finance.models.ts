@@ -28,7 +28,6 @@ export interface SyncSettings {
   syncMode: SyncMode;
   autoSync: boolean;
   sheetWebhookUrl: string;
-  firebaseWebhookUrl: string;
 }
 
 export interface SyncPayload {

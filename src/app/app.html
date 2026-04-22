@@ -45,14 +45,32 @@
           <span class="status" [class.offline]="!online()">
             {{ online() ? 'Con conexion' : 'Sin conexion' }}
           </span>
-          <span class="muted">
-            {{ syncState().lastMessage }}
-          </span>
+          <span class="muted">{{ syncState().lastMessage }}</span>
         </div>
 
         <div class="actions">
+          @if (isSignedIn()) {
+            <button class="ghost-button" type="button" (click)="signOutFromFirebase()">Salir de Firebase</button>
+          } @else {
+            <button
+              class="ghost-button"
+              type="button"
+              [disabled]="!firebaseConfigReady() || authLoading()"
+              (click)="signInWithGoogle()"
+            >
+              Entrar con Google
+            </button>
+          }
+
           <button class="ghost-button" type="button" (click)="exportCsv()">Exportar CSV</button>
-          <button class="secondary-button" type="button" (click)="syncNow()">Sincronizar ahora</button>
+          <button
+            class="secondary-button"
+            type="button"
+            [disabled]="syncState().syncing"
+            (click)="syncNow()"
+          >
+            {{ syncState().syncing ? 'Sincronizando...' : 'Sincronizar ahora' }}
+          </button>
         </div>
       </div>
     </section>
@@ -216,7 +234,7 @@
 
             <p class="help">
               Tambien puedes abrir la PWA con un texto en la URL, por ejemplo:
-              <strong> `?capture=Pago%20Uber%20S%2F%2028.50`</strong>
+              <code>?capture=Pago%20Uber%20S%2F%2028.50</code>
             </p>
           </div>
         </section>
@@ -263,25 +281,68 @@
                   <button
                     type="button"
                     [class.active]="settings().syncMode === 'local'"
-                    (click)="updateSetting('syncMode', 'local')"
+                    (click)="setSyncMode('local')"
                   >
                     Local
                   </button>
                   <button
                     type="button"
                     [class.active]="settings().syncMode === 'sheet'"
-                    (click)="updateSetting('syncMode', 'sheet')"
+                    (click)="setSyncMode('sheet')"
                   >
                     Sheets
                   </button>
                   <button
                     type="button"
                     [class.active]="settings().syncMode === 'firebase'"
-                    (click)="updateSetting('syncMode', 'firebase')"
+                    [disabled]="!firebaseConfigReady()"
+                    (click)="setSyncMode('firebase')"
                   >
                     Firebase
                   </button>
                 </div>
+              </div>
+            </div>
+
+            <div class="field auth-card">
+              <label>Cuenta Firebase</label>
+
+              @if (!firebaseConfigReady()) {
+                <div class="info-line error">
+                  Falta completar <code>src/app/firebase/firebase.options.ts</code> con la Web App de
+                  Firebase del proyecto <strong>{{ firebaseProjectId }}</strong>.
+                </div>
+              } @else if (isSignedIn()) {
+                <div class="info-line">
+                  <strong>{{ firebaseUserLabel() }}</strong>
+                  <span>{{ firebaseUserEmail() }}</span>
+                </div>
+                <p class="help">Function objetivo: <code>{{ firebaseFunctionUrl() }}</code></p>
+              } @else {
+                <div class="info-line">
+                  Firebase esta listo, pero todavia no has iniciado sesion con Google.
+                </div>
+              }
+
+              @if (firebaseAuthError()) {
+                <div class="info-line error">{{ firebaseAuthError() }}</div>
+              }
+
+              <div class="actions">
+                @if (isSignedIn()) {
+                  <button class="ghost-button" type="button" (click)="signOutFromFirebase()">
+                    Cerrar sesion
+                  </button>
+                } @else {
+                  <button
+                    class="secondary-button"
+                    type="button"
+                    [disabled]="!firebaseConfigReady() || authLoading()"
+                    (click)="signInWithGoogle()"
+                  >
+                    {{ authLoading() ? 'Abriendo Google...' : 'Entrar con Google' }}
+                  </button>
+                }
               </div>
             </div>
 
@@ -293,17 +354,6 @@
                 [ngModel]="settings().sheetWebhookUrl"
                 (ngModelChange)="updateSetting('sheetWebhookUrl', $event)"
                 placeholder="https://script.google.com/macros/s/..."
-              />
-            </div>
-
-            <div class="field">
-              <label for="firebaseUrl">Endpoint Firebase</label>
-              <input
-                id="firebaseUrl"
-                name="firebaseUrl"
-                [ngModel]="settings().firebaseWebhookUrl"
-                (ngModelChange)="updateSetting('firebaseWebhookUrl', $event)"
-                placeholder="https://us-central1-tu-proyecto.cloudfunctions.net/..."
               />
             </div>
 
@@ -327,7 +377,7 @@
               </div>
             </div>
 
-            @if (syncState().lastMessage.includes('Falta') || syncState().lastMessage.includes('respondio')) {
+            @if (syncState().lastMessage.includes('Falta') || syncState().lastMessage.includes('respondio') || syncState().lastMessage.includes('Inicia')) {
               <div class="info-line error">{{ syncState().lastMessage }}</div>
             } @else {
               <div class="info-line">{{ syncState().lastMessage }}</div>
@@ -425,10 +475,10 @@
           </div>
 
           <ul class="bullet">
-            <li>Google Sheets: crea un Apps Script web app que reciba el JSON y lo agregue a tu hoja.</li>
-            <li>Firebase: publica esta app en Hosting y manda la cola a una Cloud Function o Firestore.</li>
+            <li>Google Sheets sigue disponible como salida opcional por webhook.</li>
+            <li>Firebase ahora queda pensado como base principal con Google Login + Firestore.</li>
             <li>iPhone: para automatizar notificaciones reales, lo ideal es Atajos + webhook o una API intermedia.</li>
-            <li>WhatsApp: para lectura automatica necesitas WhatsApp Business API o un puente backend; no se puede hacer solo desde una web local.</li>
+            <li>WhatsApp: para lectura automatica necesitas WhatsApp Business API o un backend autorizado.</li>
             <li>PWA share target: desde accesos directos o flujos compatibles puedes compartir texto directo a la app.</li>
           </ul>
         </section>

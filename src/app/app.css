@@ -169,6 +169,11 @@
   font-weight: 700;
 }
 
+code {
+  font-family: 'Consolas', 'SFMono-Regular', monospace;
+  font-size: 0.9em;
+}
+
 .section-title {
   margin: 0;
   font-size: 1.15rem;
@@ -201,6 +206,10 @@
 .field textarea {
   min-height: 124px;
   resize: vertical;
+}
+
+.auth-card {
+  gap: 12px;
 }
 
 .field input:focus,
@@ -241,6 +250,17 @@
   background: #122620;
   color: #fffefb;
   transform: translateY(-1px);
+}
+
+.segmented button:disabled,
+.actions button:disabled,
+.toggle button:disabled,
+.item-actions button:disabled,
+.ghost-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 .toggle {
@@ -309,6 +329,8 @@
   border-radius: 16px;
   background: rgba(15, 118, 110, 0.08);
   color: #15574f;
+  display: grid;
+  gap: 4px;
 }
 
 .info-line.error {

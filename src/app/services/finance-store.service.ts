@@ -1,4 +1,5 @@
-import { computed, effect, Injectable, signal } from '@angular/core';
+import { computed, effect, inject, Injectable, signal } from '@angular/core';
+import { FirebaseAuthService } from './firebase-auth.service';
 import {
   ParsedCapture,
   SyncPayload,
@@ -14,6 +15,8 @@ const SETTINGS_KEY = 'gastospe.settings.v1';
 
 @Injectable({ providedIn: 'root' })
 export class FinanceStoreService {
+  private readonly firebaseAuth = inject(FirebaseAuthService);
+
   readonly transactions = signal<Transaction[]>(this.loadTransactions());
   readonly settings = signal<SyncSettings>(this.loadSettings());
   readonly online = signal(this.resolveOnline());
@@ -69,7 +72,6 @@ export class FinanceStoreService {
       syncMode: 'local',
       autoSync: true,
       sheetWebhookUrl: '',
-      firebaseWebhookUrl: '',
     };
   }
 
@@ -157,20 +159,51 @@ export class FinanceStoreService {
       this.syncState.set({
         syncing: false,
         lastAttempt: new Date().toISOString(),
-        lastMessage: 'Modo local activo. Usa exportar CSV o configura un destino remoto.',
+        lastMessage: 'Modo local activo. Exporta CSV o inicia sesion para sincronizar.',
       });
       return;
     }
 
-    this.syncState.update((current) => ({ ...current, syncing: true, lastAttempt: new Date().toISOString() }));
+    if (settings.syncMode === 'firebase' && !this.firebaseAuth.configReady()) {
+      this.syncState.set({
+        syncing: false,
+        lastAttempt: new Date().toISOString(),
+        lastMessage: 'Falta configurar la Web App de Firebase para activar la nube.',
+      });
+      return;
+    }
 
-    const result = await this.sendToRemote({
-      source: 'gastospe-web',
-      exportedAt: new Date().toISOString(),
-      owner: settings.owner,
-      syncMode: settings.syncMode,
-      transactions: pending,
-    });
+    if (settings.syncMode === 'firebase' && !this.firebaseAuth.isSignedIn()) {
+      this.syncState.set({
+        syncing: false,
+        lastAttempt: new Date().toISOString(),
+        lastMessage: 'Inicia sesion con Google para sincronizar en Firebase.',
+      });
+      return;
+    }
+
+    this.syncState.update((current) => ({
+      ...current,
+      syncing: true,
+      lastAttempt: new Date().toISOString(),
+    }));
+
+    const result =
+      settings.syncMode === 'sheet'
+        ? await this.sendToSheet({
+            source: 'gastospe-web',
+            exportedAt: new Date().toISOString(),
+            owner: settings.owner,
+            syncMode: settings.syncMode,
+            transactions: pending,
+          })
+        : await this.sendToFirebase({
+            source: 'gastospe-web',
+            exportedAt: new Date().toISOString(),
+            owner: settings.owner,
+            syncMode: settings.syncMode,
+            transactions: pending,
+          });
 
     this.transactions.update((items) =>
       items.map((item) => {
@@ -231,23 +264,47 @@ export class FinanceStoreService {
     URL.revokeObjectURL(link.href);
   }
 
-  private async sendToRemote(payload: SyncPayload): Promise<SyncResult> {
-    const settings = this.settings();
-    const url =
-      settings.syncMode === 'sheet' ? settings.sheetWebhookUrl.trim() : settings.firebaseWebhookUrl.trim();
+  private async sendToSheet(payload: SyncPayload): Promise<SyncResult> {
+    const url = this.settings().sheetWebhookUrl.trim();
 
     if (!url) {
       return {
         success: false,
-        message: 'Falta configurar la URL del webhook para sincronizar.',
+        message: 'Falta configurar la URL del webhook de Google Sheets.',
       };
     }
 
+    return this.postJson(url, payload, 'Movimientos enviados a Google Sheets.');
+  }
+
+  private async sendToFirebase(payload: SyncPayload): Promise<SyncResult> {
+    const authorization = await this.firebaseAuth.getAuthorizationHeader();
+    const url = this.firebaseAuth.functionUrl();
+
+    if (!authorization || !url) {
+      return {
+        success: false,
+        message: 'La sesion de Firebase no esta lista para sincronizar.',
+      };
+    }
+
+    return this.postJson(url, payload, 'Movimientos enviados a Firestore.', {
+      Authorization: authorization,
+    });
+  }
+
+  private async postJson(
+    url: string,
+    payload: SyncPayload,
+    successMessage: string,
+    extraHeaders: Record<string, string> = {},
+  ): Promise<SyncResult> {
     try {
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...extraHeaders,
         },
         body: JSON.stringify(payload),
       });
@@ -261,10 +318,7 @@ export class FinanceStoreService {
 
       return {
         success: true,
-        message:
-          settings.syncMode === 'sheet'
-            ? 'Movimientos enviados a Google Sheets.'
-            : 'Movimientos enviados al endpoint de Firebase.',
+        message: successMessage,
       };
     } catch (error) {
       return {
@@ -397,7 +451,9 @@ export class FinanceStoreService {
   }
 
   private extractAmount(text: string): number | null {
-    const match = text.match(/(?:s\/|pen|\$|usd)?\s?(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})|\d+(?:[.,]\d{1,2})?)/i);
+    const match = text.match(
+      /(?:s\/|pen|\$|usd)?\s?(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})|\d+(?:[.,]\d{1,2})?)/i,
+    );
 
     if (!match) {
       return null;
