@@ -5,6 +5,8 @@
 /tmp
 /out-tsc
 /bazel-out
+.angular-serve.log
+.angular-serve.err.log
 
 # Node
 /node_modules
