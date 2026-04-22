@@ -1,14 +1,57 @@
 const CONFIG = {
   functionUrl:
     'https://us-central1-app-gastospe.cloudfunctions.net/ingestAutomationTransactions',
-  ingestSecret: 'REEMPLAZAR_CON_SECRET',
-  firebaseUid: 'REEMPLAZAR_CON_UID',
+  ingestSecret: readScriptConfig_('GASTOSPE_INGEST_SECRET', 'REEMPLAZAR_CON_SECRET'),
+  firebaseUid: readScriptConfig_('GASTOSPE_FIREBASE_UID', 'k4isjFEKaPT2pcunssO1XN1unPp2'),
   owner: 'Mi tablero',
   processedLabel: 'gastospe-procesado',
   gmailQuery:
     'newer_than:14d from:notificaciones@notificacionesbcp.com.pe (yapeo OR consumo OR plin OR abono OR deposito)',
   maxThreads: 25,
 };
+
+function setupGastospeConfig() {
+  const properties = PropertiesService.getScriptProperties();
+  properties.setProperties({
+    GASTOSPE_FIREBASE_UID: 'k4isjFEKaPT2pcunssO1XN1unPp2',
+  }, true);
+
+  Logger.log(
+    'UID listo. Ahora guarda tambien GASTOSPE_INGEST_SECRET en Script Properties o con setIngestSecret_().',
+  );
+}
+
+function setIngestSecret_(secret) {
+  const normalizedSecret = String(secret || '').trim();
+
+  if (!normalizedSecret) {
+    throw new Error('Ingresa un secreto valido antes de guardarlo.');
+  }
+
+  PropertiesService.getScriptProperties().setProperty(
+    'GASTOSPE_INGEST_SECRET',
+    normalizedSecret,
+  );
+  Logger.log('Se guardo GASTOSPE_INGEST_SECRET en Script Properties.');
+}
+
+function showCurrentConfig_() {
+  Logger.log(
+    JSON.stringify(
+      {
+        functionUrl: CONFIG.functionUrl,
+        firebaseUid: CONFIG.firebaseUid,
+        owner: CONFIG.owner,
+        processedLabel: CONFIG.processedLabel,
+        gmailQuery: CONFIG.gmailQuery,
+        hasIngestSecret:
+          CONFIG.ingestSecret && CONFIG.ingestSecret !== 'REEMPLAZAR_CON_SECRET',
+      },
+      null,
+      2,
+    ),
+  );
+}
 
 function ingestBcpFinanceEmails() {
   validateConfig_();
@@ -359,10 +402,19 @@ function getOrCreateLabel_(name) {
 
 function validateConfig_() {
   if (CONFIG.ingestSecret === 'REEMPLAZAR_CON_SECRET') {
-    throw new Error('Completa CONFIG.ingestSecret antes de ejecutar el script.');
+    throw new Error(
+      'Completa CONFIG.ingestSecret o guarda GASTOSPE_INGEST_SECRET en Script Properties antes de ejecutar el script.',
+    );
   }
 
-  if (CONFIG.firebaseUid === 'REEMPLAZAR_CON_UID') {
-    throw new Error('Completa CONFIG.firebaseUid antes de ejecutar el script.');
+  if (!CONFIG.firebaseUid || CONFIG.firebaseUid === 'REEMPLAZAR_CON_UID') {
+    throw new Error(
+      'Completa CONFIG.firebaseUid o guarda GASTOSPE_FIREBASE_UID en Script Properties antes de ejecutar el script.',
+    );
   }
+}
+
+function readScriptConfig_(key, fallback) {
+  const storedValue = PropertiesService.getScriptProperties().getProperty(key);
+  return storedValue ? storedValue.trim() : fallback;
 }

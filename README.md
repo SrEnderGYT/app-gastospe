@@ -117,15 +117,17 @@ Pasos:
 
 1. Crear un proyecto de Apps Script.
 2. Pegar el contenido del archivo.
-3. Completar:
-   - `CONFIG.ingestSecret`
-   - `CONFIG.firebaseUid`
-   - `CONFIG.owner`
-   - `CONFIG.gmailQuery`
-4. Ejecutar `previewRecentMatches()` para ver que esta detectando sin enviar nada.
-5. Ejecutar `runParserSelfTest()` para una verificacion rapida del parser.
-6. Ejecutar `ingestBcpFinanceEmails()` manualmente una vez.
-7. Ejecutar `createHourlyTrigger()`.
+3. El UID principal ya quedo cargado para la cuenta `undersansyt267@gmail.com`.
+4. Guardar el secreto en Apps Script:
+   - abrir `Project Settings > Script Properties`
+   - crear `GASTOSPE_INGEST_SECRET`
+   - pegar el secreto actual de ingestion
+5. Si quieres, corre `setupGastospeConfig()` para volver a fijar el UID en Script Properties.
+6. Ejecutar `showCurrentConfig_()` para confirmar que el script ya ve tu UID y el secreto.
+7. Ejecutar `previewRecentMatches()` para ver que esta detectando sin enviar nada.
+8. Ejecutar `runParserSelfTest()` para una verificacion rapida del parser.
+9. Ejecutar `ingestBcpFinanceEmails()` manualmente una vez.
+10. Ejecutar `createHourlyTrigger()`.
 
 El script:
 
@@ -133,7 +135,8 @@ El script:
 - detecta compras, plines y yapeos;
 - ignora compras rechazadas y correos de configuracion;
 - usa `gmail-${messageId}` como ID estable para evitar duplicados;
-- envia los movimientos a Firebase por HTTPS.
+- envia los movimientos a Firebase por HTTPS;
+- permite guardar `UID` y secreto en `Script Properties` para no dejar secretos en el repo.
 
 ## Google Sheets
 
