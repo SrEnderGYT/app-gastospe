@@ -908,7 +908,7 @@
               @for (item of automationItems(); track item.label) {
                 <article class="metric-card">
                   <span class="metric-label">{{ item.label }}</span>
-                  <strong [class.mono]="item.label === 'UID'">{{ item.value }}</strong>
+                  <strong [class.mono]="item.label === 'Cuenta'">{{ item.value }}</strong>
                 </article>
               }
             </div>
@@ -938,9 +938,10 @@
                   </article>
                   <article class="automation-item">
                     <div>
-                      <strong>Script</strong>
+                      <strong>Archivo base</strong>
                       <span><code>docs/gmail-firestore-apps-script.gs</code></span>
                     </div>
+                    <span class="status-chip">Listo</span>
                   </article>
                 </div>
               </section>
@@ -1033,15 +1034,42 @@
                 </div>
               </section>
 
-              <section class="panel-card panel-span-2">
+              <section class="panel-card">
                 <div class="panel-headline">
-                  <h3>Endpoint</h3>
-                  <span class="muted-copy">{{ syncState().syncing ? 'Sincronizando...' : syncModeLabel() }}</span>
+                  <h3>UID destino</h3>
+                  <button
+                    class="ghost-button small-button"
+                    type="button"
+                    [disabled]="!firebaseUserId()"
+                    (click)="copyToClipboard(firebaseUserId())"
+                  >
+                    Copiar
+                  </button>
+                </div>
+
+                <div class="inline-code-block mono">
+                  {{ firebaseUserId() || 'Inicia sesion para obtenerlo.' }}
+                </div>
+              </section>
+
+              <section class="panel-card">
+                <div class="panel-headline">
+                  <h3>Endpoint de ingesta</h3>
+                  <button
+                    class="ghost-button small-button"
+                    type="button"
+                    [disabled]="!firebaseAutomationUrl()"
+                    (click)="copyToClipboard(firebaseAutomationUrl())"
+                  >
+                    Copiar
+                  </button>
                 </div>
 
                 <div class="inline-code-block">
                   <code>{{ firebaseAutomationUrl() }}</code>
                 </div>
+
+                <p class="muted-copy">Se usa con POST desde Apps Script.</p>
               </section>
             </div>
           </section>

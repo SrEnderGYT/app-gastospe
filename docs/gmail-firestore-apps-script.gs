@@ -5,9 +5,11 @@ const CONFIG = {
   firebaseUid: readScriptConfig_('GASTOSPE_FIREBASE_UID', 'k4isjFEKaPT2pcunssO1XN1unPp2'),
   owner: 'Mi tablero',
   processedLabel: 'gastospe-procesado',
+  processedStoreKey: 'GASTOSPE_PROCESSED_MESSAGE_IDS',
   gmailQuery:
-    'newer_than:14d ((from:notificaciones@notificacionesbcp.com.pe) OR from:bbva OR yapeo OR plin OR consumo OR compra OR transferencia OR abono OR deposito) -category:promotions -category:social',
-  maxThreads: 25,
+    'newer_than:30d (from:notificaciones@notificacionesbcp.com.pe OR from:bbva OR yapeo OR plin OR consumo OR compra OR transferencia OR abono OR deposito OR retiro OR cargo) -category:promotions -category:social',
+  maxThreads: 80,
+  maxProcessedIds: 800,
 };
 
 function setupGastospeConfig() {
@@ -36,6 +38,8 @@ function setIngestSecret_(secret) {
 }
 
 function showCurrentConfig_() {
+  const processedIds = readProcessedMessageIds_();
+
   Logger.log(
     JSON.stringify(
       {
@@ -44,6 +48,7 @@ function showCurrentConfig_() {
         owner: CONFIG.owner,
         processedLabel: CONFIG.processedLabel,
         gmailQuery: CONFIG.gmailQuery,
+        processedIds: processedIds.length,
         hasIngestSecret:
           CONFIG.ingestSecret && CONFIG.ingestSecret !== 'REEMPLAZAR_CON_SECRET',
       },
@@ -64,6 +69,8 @@ function ingestBcpFinanceEmails() {
   }
 
   postTransactions_(transactions);
+  rememberProcessedTransactions_(transactions);
+  labelThreadsForTransactions_(transactions);
   Logger.log(`Movimientos enviados: ${transactions.length}`);
 }
 
@@ -155,33 +162,36 @@ function deleteProjectTriggers() {
   });
 }
 
+function resetProcessedMessages_() {
+  PropertiesService.getScriptProperties().deleteProperty(CONFIG.processedStoreKey);
+  Logger.log('Se limpio el cache de mensajes procesados.');
+}
+
 function collectCandidateTransactions_(options) {
   const settings = options || {};
-  const label = getOrCreateLabel_(CONFIG.processedLabel);
-  const threads = GmailApp.search(
-    `${CONFIG.gmailQuery} -label:${CONFIG.processedLabel}`,
-    0,
-    CONFIG.maxThreads,
-  );
+  const processedMessageIds = readProcessedMessageIdsSet_();
+  const threads = GmailApp.search(CONFIG.gmailQuery, 0, CONFIG.maxThreads);
   const transactions = [];
 
   threads.forEach(function (thread) {
-    const messages = thread.getMessages();
-    let acceptedInThread = 0;
+    thread.getMessages().forEach(function (message) {
+      const messageId = message.getId();
 
-    messages.forEach(function (message) {
+      if (processedMessageIds.has(messageId)) {
+        return;
+      }
+
       const transaction = buildTransactionFromMessage_(message);
 
       if (transaction) {
         transactions.push(transaction);
-        acceptedInThread += 1;
       }
     });
-
-    if (!settings.skipLabeling && acceptedInThread > 0) {
-      thread.addLabel(label);
-    }
   });
+
+  if (!settings.skipLabeling) {
+    Logger.log(`Candidatos nuevos detectados: ${transactions.length}`);
+  }
 
   return transactions;
 }
@@ -214,6 +224,8 @@ function buildTransactionFromMessage_(message) {
     source: 'gmail',
     rawText: text,
     createdAt: message.getDate().toISOString(),
+    gmailMessageId: message.getId(),
+    gmailThreadId: message.getThread().getId(),
   };
 }
 
@@ -261,6 +273,50 @@ function postTransactions_(transactions) {
   }
 
   Logger.log(body);
+}
+
+function rememberProcessedTransactions_(transactions) {
+  const currentIds = readProcessedMessageIds_();
+  const seen = {};
+
+  currentIds.forEach(function (id) {
+    seen[id] = true;
+  });
+
+  transactions.forEach(function (transaction) {
+    const messageId = String(transaction.gmailMessageId || '').trim();
+
+    if (messageId) {
+      seen[messageId] = true;
+    }
+  });
+
+  const trimmedIds = Object.keys(seen).slice(-CONFIG.maxProcessedIds);
+  PropertiesService.getScriptProperties().setProperty(
+    CONFIG.processedStoreKey,
+    JSON.stringify(trimmedIds),
+  );
+}
+
+function labelThreadsForTransactions_(transactions) {
+  const label = getOrCreateLabel_(CONFIG.processedLabel);
+  const seenThreads = {};
+
+  transactions.forEach(function (transaction) {
+    const threadId = String(transaction.gmailThreadId || '').trim();
+
+    if (threadId) {
+      seenThreads[threadId] = true;
+    }
+  });
+
+  Object.keys(seenThreads).forEach(function (threadId) {
+    const thread = GmailApp.getThreadById(threadId);
+
+    if (thread) {
+      thread.addLabel(label);
+    }
+  });
 }
 
 function shouldIgnoreTransactionText_(text) {
@@ -452,6 +508,26 @@ function normalizeWhitespace_(text) {
 
 function getOrCreateLabel_(name) {
   return GmailApp.getUserLabelByName(name) || GmailApp.createLabel(name);
+}
+
+function readProcessedMessageIds_() {
+  const rawValue = PropertiesService.getScriptProperties().getProperty(CONFIG.processedStoreKey);
+
+  if (!rawValue) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue);
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch (error) {
+    Logger.log(`No se pudo leer ${CONFIG.processedStoreKey}: ${error}`);
+    return [];
+  }
+}
+
+function readProcessedMessageIdsSet_() {
+  return new Set(readProcessedMessageIds_());
 }
 
 function validateConfig_() {

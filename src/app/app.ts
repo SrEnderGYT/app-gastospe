@@ -310,7 +310,7 @@ export class App {
     { label: 'Cloud', value: this.cloudSummary() },
     { label: 'Gmail', value: this.automationStatus() },
     { label: 'Sync', value: this.syncModeLabel() },
-    { label: 'UID', value: this.firebaseUserId() || 'Pendiente' },
+    { label: 'Cuenta', value: this.formatIdentifier(this.firebaseUserId()) || 'Pendiente' },
   ]);
 
   constructor() {
@@ -548,6 +548,18 @@ export class App {
     this.updateSetting('syncMode', mode);
   }
 
+  protected async copyToClipboard(value: string): Promise<void> {
+    if (!value || typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      // Clipboard support depends on browser permissions.
+    }
+  }
+
   protected saveInitialProfile(): void {
     const validationMessage = this.validateProfileDraft(this.profile());
 
@@ -741,6 +753,20 @@ export class App {
         scale: 0.92 + Math.random() * 0.18,
       })),
     };
+  }
+
+  private formatIdentifier(value: string): string {
+    const normalized = String(value || '').trim();
+
+    if (!normalized) {
+      return '';
+    }
+
+    if (normalized.length <= 16) {
+      return normalized;
+    }
+
+    return `${normalized.slice(0, 8)}...${normalized.slice(-6)}`;
   }
 
   private daysUntil(date: string): number {
