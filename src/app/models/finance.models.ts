@@ -5,6 +5,7 @@ export type SyncStatus = 'pending' | 'synced' | 'failed';
 export type WorkspaceView = 'overview' | 'add' | 'subscriptions' | 'automation' | 'profile';
 export type SubscriptionStatus = 'active' | 'paused' | 'cancelled';
 export type SubscriptionCycle = 'monthly' | 'annual';
+export type ThemePreference = 'light' | 'dark';
 
 export interface TransactionDraft {
   kind: TransactionKind;
@@ -69,6 +70,7 @@ export interface UserProfile {
   phone: string;
   preferredView: WorkspaceView;
   onboardingCompleted: boolean;
+  theme: ThemePreference;
 }
 
 export interface SubscriptionDraft {

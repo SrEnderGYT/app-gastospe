@@ -1,10 +1,10 @@
-<div class="shell">
+<div class="shell" [class.theme-light]="currentTheme() === 'light'" [class.theme-dark]="currentTheme() === 'dark'">
   @if (accessStep() === 'auth') {
     <main class="auth-shell">
       <section class="auth-preview surface-card">
         <span class="micro-pill soft">Gastospe</span>
         <h1>Tu dinero, claro y en orden.</h1>
-        <p class="page-copy">Accede y sigue desde un panel limpio, pensado para desktop y mobile.</p>
+        <p class="page-copy">Accede a un panel simple, rapido y limpio.</p>
 
         <div class="preview-scene" aria-hidden="true">
           <article class="scene-board">
@@ -46,19 +46,32 @@
                 </div>
               </div>
             </div>
-
-            <div class="scene-side-note">
-              <span class="micro-pill">Google</span>
-              <p>Entra sin captcha.</p>
-            </div>
           </article>
         </div>
       </section>
 
       <section class="auth-card surface-card">
-        <header class="section-head">
-          <span class="micro-pill">Acceso</span>
-          <h2>{{ authTitle() }}</h2>
+        <header class="section-head split">
+          <div class="section-head-copy">
+            <span class="micro-pill">Acceso</span>
+            <h2>{{ authTitle() }}</h2>
+          </div>
+          <div class="segmented-control compact theme-switch">
+            <button
+              type="button"
+              [class.active]="currentTheme() === 'light'"
+              (click)="setTheme('light')"
+            >
+              Claro
+            </button>
+            <button
+              type="button"
+              [class.active]="currentTheme() === 'dark'"
+              (click)="setTheme('dark')"
+            >
+              Oscuro
+            </button>
+          </div>
         </header>
 
         <div class="segmented-control">
@@ -165,16 +178,34 @@
           }
         </div>
 
-        <p class="quiet-copy">Google entra sin captcha. Con correo solo pedimos una validacion minima.</p>
+        <p class="quiet-copy">Google entra directo. El captcha queda solo para correo.</p>
       </section>
     </main>
   } @else if (accessStep() === 'profile') {
     <main class="profile-shell">
       <section class="profile-card surface-card">
-        <header class="section-head large">
-          <span class="micro-pill">Perfil inicial</span>
-          <h2>Completa tus datos una sola vez</h2>
-          <p class="page-copy">Guarda y luego entra manualmente al tablero.</p>
+        <header class="section-head large split">
+          <div class="section-head-copy">
+            <span class="micro-pill">Perfil inicial</span>
+            <h2>Completa tus datos una sola vez</h2>
+            <p class="page-copy">Guarda y luego entra manualmente al tablero.</p>
+          </div>
+          <div class="segmented-control compact theme-switch">
+            <button
+              type="button"
+              [class.active]="currentTheme() === 'light'"
+              (click)="setTheme('light')"
+            >
+              Claro
+            </button>
+            <button
+              type="button"
+              [class.active]="currentTheme() === 'dark'"
+              (click)="setTheme('dark')"
+            >
+              Oscuro
+            </button>
+          </div>
         </header>
 
         <div class="identity-row">
@@ -300,6 +331,22 @@
         </div>
 
         <div class="topbar-actions">
+          <div class="segmented-control compact theme-switch">
+            <button
+              type="button"
+              [class.active]="currentTheme() === 'light'"
+              (click)="setTheme('light')"
+            >
+              Claro
+            </button>
+            <button
+              type="button"
+              [class.active]="currentTheme() === 'dark'"
+              (click)="setTheme('dark')"
+            >
+              Oscuro
+            </button>
+          </div>
           <button class="ghost-button" type="button" (click)="exportCsv()">CSV</button>
           <button class="ghost-button" type="button" [disabled]="syncState().syncing" (click)="syncNow()">
             {{ syncState().syncing ? 'Sync...' : 'Sincronizar' }}
@@ -335,18 +382,20 @@
             <div class="metrics-grid">
               <article class="metric-card balance">
                 <span class="metric-label">Balance</span>
-                <strong>{{ totals().balance | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</strong>
+                <strong [class.income]="totals().balance > 0" [class.expense]="totals().balance < 0">
+                  {{ totals().balance | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}
+                </strong>
               </article>
               <article class="metric-card">
                 <span class="metric-label">Ingresos</span>
-                <strong>{{ totals().income | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</strong>
+                <strong class="income">{{ totals().income | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</strong>
               </article>
               <article class="metric-card">
                 <span class="metric-label">Gastos</span>
-                <strong>{{ totals().expense | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</strong>
+                <strong class="expense">{{ totals().expense | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</strong>
               </article>
               <article class="metric-card">
-                <span class="metric-label">Pendientes</span>
+                <span class="metric-label">Sync pendiente</span>
                 <strong>{{ totals().pending }}</strong>
               </article>
             </div>
@@ -355,7 +404,7 @@
               <section class="panel-card chart-card">
                 <div class="panel-headline">
                   <h3>Flujo semanal</h3>
-                  <span class="chip neutral">
+                  <span class="chip" [class.ok]="trend().total >= 0" [class.warn]="trend().total < 0">
                     {{ trend().total | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}
                   </span>
                 </div>
@@ -363,11 +412,19 @@
                 <div class="chart-stage">
                   <svg viewBox="0 0 100 100" preserveAspectRatio="none">
                     <defs>
-                      <linearGradient id="trendGradient" x1="0" x2="1" y1="0" y2="1">
-                        <stop offset="0%" stop-color="#1d4ed8"></stop>
-                        <stop offset="100%" stop-color="#10b981"></stop>
+                      <linearGradient id="trendGradient" x1="0" x2="1" y1="0" y2="0">
+                        <stop offset="0%" stop-color="#3b82f6"></stop>
+                        <stop offset="100%" stop-color="#34d399"></stop>
+                      </linearGradient>
+                      <linearGradient id="trendAreaGradient" x1="0" x2="0" y1="0" y2="1">
+                        <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.35"></stop>
+                        <stop offset="100%" stop-color="#34d399" stop-opacity="0.0"></stop>
                       </linearGradient>
                     </defs>
+                    <polygon
+                      class="chart-area"
+                      [attr.points]="trend().points + ' 100,100 0,100'"
+                    ></polygon>
                     <polyline [attr.points]="trend().points"></polyline>
                   </svg>
                 </div>
@@ -382,25 +439,45 @@
               <section class="panel-card">
                 <div class="panel-headline">
                   <h3>Categorias</h3>
-                  <span class="muted-copy">{{ monthlyRunRate() | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</span>
+                  <span class="muted-copy">{{ monthlyRunRate() | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }} / mes</span>
                 </div>
 
-                @if (categoryBreakdown().length) {
-                  <div class="stack-list">
-                    @for (item of categoryBreakdown(); track item.category) {
-                      <article class="progress-item">
-                        <div class="progress-head">
-                          <strong>{{ item.category }}</strong>
-                          <span>{{ item.total | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</span>
-                        </div>
-                        <div class="progress-track">
-                          <span [style.width.%]="totals().expense ? (item.total / totals().expense) * 100 : 0"></span>
-                        </div>
-                      </article>
-                    }
+                @if (categoryChartArcs().length) {
+                  <div class="donut-layout">
+                    <div class="donut-wrap">
+                      <svg class="donut-svg" viewBox="0 0 100 100">
+                        @for (arc of categoryChartArcs(); track arc.category) {
+                          <path [attr.d]="arc.path" [attr.fill]="arc.color" class="donut-segment" />
+                        }
+                        <text x="50" y="46" class="donut-center-label">Gastos</text>
+                        <text x="50" y="58" class="donut-center-value">
+                          {{ totals().expense | currency: settings().currency : 'symbol' : '1.0-0' : 'es-PE' }}
+                        </text>
+                      </svg>
+                    </div>
+
+                    <div class="donut-legend">
+                      @for (arc of categoryChartArcs(); track arc.category) {
+                        <article class="progress-item">
+                          <div class="progress-head">
+                            <div class="legend-row">
+                              <span class="legend-dot" [style.background]="arc.color"></span>
+                              <strong>{{ arc.category }}</strong>
+                            </div>
+                            <div class="legend-amounts">
+                              <span class="legend-pct">{{ arc.percentage }}%</span>
+                              <span>{{ arc.total | currency: settings().currency : 'symbol' : '1.2-2' : 'es-PE' }}</span>
+                            </div>
+                          </div>
+                          <div class="progress-track">
+                            <span [style.width.%]="arc.percentage" [style.background]="arc.color"></span>
+                          </div>
+                        </article>
+                      }
+                    </div>
                   </div>
                 } @else {
-                  <p class="empty-copy">Aun no hay gastos suficientes para el detalle.</p>
+                  <p class="empty-copy">Aun no hay gastos para mostrar.</p>
                 }
               </section>
 
@@ -823,61 +900,54 @@
               <div>
                 <span class="micro-pill">Automatizacion</span>
                 <h2>Nube y Gmail</h2>
-                <p class="page-copy">Deja lista la sincronizacion y el ingreso automatico.</p>
+                <p class="page-copy">Todo lo importante, sin ruido extra.</p>
               </div>
             </header>
 
-            <div class="page-grid">
+            <div class="metrics-grid compact-metrics">
+              @for (item of automationItems(); track item.label) {
+                <article class="metric-card">
+                  <span class="metric-label">{{ item.label }}</span>
+                  <strong [class.mono]="item.label === 'UID'">{{ item.value }}</strong>
+                </article>
+              }
+            </div>
+
+            <div class="page-grid two-up">
               <section class="panel-card">
                 <div class="panel-headline">
-                  <h3>Estado</h3>
+                  <h3>Integraciones</h3>
                 </div>
 
-                <div class="info-list">
-                  <div class="info-row">
-                    <span>Proyecto</span>
-                    <strong>{{ firebaseProjectId }}</strong>
-                  </div>
-                  <div class="info-row">
-                    <span>Cloud</span>
-                    <strong>{{ cloudSummary() }}</strong>
-                  </div>
-                  <div class="info-row">
-                    <span>Automatizacion</span>
-                    <strong>{{ automationStatus() }}</strong>
-                  </div>
-                  <div class="info-row">
-                    <span>UID</span>
-                    <strong class="mono">{{ firebaseUserId() || 'Inicia sesion' }}</strong>
-                  </div>
+                <div class="automation-list">
+                  <article class="automation-item">
+                    <div>
+                      <strong>Gmail + Apps Script</strong>
+                      <span>BCP, BBVA, Yape y Plin</span>
+                    </div>
+                    <span class="status-chip" [class.ok]="hasCloudAccess()" [class.warn]="!hasCloudAccess()">
+                      {{ automationStatus() }}
+                    </span>
+                  </article>
+                  <article class="automation-item">
+                    <div>
+                      <strong>Firestore</strong>
+                      <span>{{ syncModeLabel() }}</span>
+                    </div>
+                    <span class="status-chip" [ngClass]="syncTone()">{{ cloudSummary() }}</span>
+                  </article>
+                  <article class="automation-item">
+                    <div>
+                      <strong>Script</strong>
+                      <span><code>docs/gmail-firestore-apps-script.gs</code></span>
+                    </div>
+                  </article>
                 </div>
               </section>
 
               <section class="panel-card">
-                <div class="panel-headline">
-                  <h3>Gmail</h3>
-                </div>
-
-                <div class="stack-list">
-                  <article class="support-row">
-                    <strong>Archivo</strong>
-                    <span><code>docs/gmail-firestore-apps-script.gs</code></span>
-                  </article>
-                  <article class="support-row">
-                    <strong>Endpoint</strong>
-                    <span><code>{{ firebaseAutomationUrl() }}</code></span>
-                  </article>
-                  <article class="support-row">
-                    <strong>Soporta</strong>
-                    <span>BCP, BBVA, Yape y Plin</span>
-                  </article>
-                </div>
-              </section>
-
-              <section class="panel-card panel-span-2">
                 <div class="panel-headline">
                   <h3>Sincronizacion</h3>
-                  <span class="muted-copy">{{ syncState().lastMessage }}</span>
                 </div>
 
                 <div class="form-grid">
@@ -906,7 +976,7 @@
                   </div>
 
                   <div class="field field-span-2">
-                    <label for="sheetUrl">Webhook de Google Sheets</label>
+                    <label for="sheetUrl">Webhook de Sheets</label>
                     <input
                       id="sheetUrl"
                       name="sheetUrl"
@@ -961,12 +1031,17 @@
                     Firestore
                   </button>
                 </div>
+              </section>
 
-                @if (firebaseAuthError() || firebaseAuthNotice()) {
-                  <div class="message-box" [class.error]="firebaseAuthError()">
-                    {{ firebaseAuthError() || firebaseAuthNotice() }}
-                  </div>
-                }
+              <section class="panel-card panel-span-2">
+                <div class="panel-headline">
+                  <h3>Endpoint</h3>
+                  <span class="muted-copy">{{ syncState().syncing ? 'Sincronizando...' : syncModeLabel() }}</span>
+                </div>
+
+                <div class="inline-code-block">
+                  <code>{{ firebaseAutomationUrl() }}</code>
+                </div>
               </section>
             </div>
           </section>
@@ -1041,6 +1116,26 @@
                   <button class="primary-button" type="button" (click)="saveProfileChanges()">
                     Guardar perfil
                   </button>
+                </div>
+
+                <div class="toggle-row block">
+                  <span>Tema</span>
+                  <div class="segmented-control compact">
+                    <button
+                      type="button"
+                      [class.active]="currentTheme() === 'light'"
+                      (click)="setTheme('light')"
+                    >
+                      Claro
+                    </button>
+                    <button
+                      type="button"
+                      [class.active]="currentTheme() === 'dark'"
+                      (click)="setTheme('dark')"
+                    >
+                      Oscuro
+                    </button>
+                  </div>
                 </div>
 
                 @if (profileBannerText()) {

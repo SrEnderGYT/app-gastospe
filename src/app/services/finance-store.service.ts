@@ -174,6 +174,7 @@ export class FinanceStoreService {
       phone: '',
       preferredView: 'overview',
       onboardingCompleted: false,
+      theme: 'light',
     };
   }
 

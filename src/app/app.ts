@@ -6,6 +6,7 @@ import {
   SubscriptionItem,
   SyncSettings,
   SyncStatus,
+  ThemePreference,
   Transaction,
   TransactionDraft,
   TransactionKind,
@@ -49,7 +50,6 @@ export class App {
   protected readonly firebaseUserId = this.firebaseAuthService.uid;
   protected readonly firebaseProviderLabel = this.firebaseAuthService.providerLabel;
   protected readonly firebaseAuthError = this.firebaseAuthService.error;
-  protected readonly firebaseAuthNotice = this.firebaseAuthService.notice;
   protected readonly firebaseAutomationUrl = this.firebaseAuthService.automationFunctionUrl;
 
   protected readonly authMode = signal<'signin' | 'register'>('signin');
@@ -127,16 +127,14 @@ export class App {
     this.authMode() === 'register' ? 'Crear con correo' : 'Entrar con correo',
   );
 
-  protected readonly authBannerText = computed(
-    () => this.authMessage() || this.firebaseAuthError() || this.firebaseAuthNotice(),
-  );
+  protected readonly authBannerText = computed(() => this.authMessage() || this.firebaseAuthError());
 
   protected readonly authBannerIsError = computed(() =>
     Boolean(this.authMessage() || this.firebaseAuthError()),
   );
 
   protected readonly profileBannerText = computed(
-    () => this.profileMessage() || this.firebaseAuthError() || this.firebaseAuthNotice(),
+    () => this.profileMessage() || this.firebaseAuthError(),
   );
 
   protected readonly profileBannerIsError = computed(() =>
@@ -146,6 +144,7 @@ export class App {
   protected readonly activeViewMeta = computed(
     () => this.workspaceNav.find((item) => item.value === this.activeView()) || this.workspaceNav[0],
   );
+  protected readonly currentTheme = computed<ThemePreference>(() => this.profile().theme || 'light');
 
   protected readonly welcomeName = computed(
     () => this.profile().fullName || this.firebaseUserLabel() || 'Tu espacio',
@@ -195,6 +194,33 @@ export class App {
   });
 
   protected readonly latestTransactions = computed(() => this.transactions().slice(0, 8));
+
+  protected readonly categoryChartArcs = computed(() => {
+    const breakdown = this.categoryBreakdown();
+    const total = breakdown.reduce((sum, item) => sum + item.total, 0);
+
+    if (!total || !breakdown.length) {
+      return [];
+    }
+
+    const palette = ['#3b82f6', '#34d399', '#fbbf24', '#a78bfa', '#f87171'];
+    let cumulativeDeg = -90;
+
+    return breakdown.map((item, index) => {
+      const fraction = item.total / total;
+      const spanDeg = Math.min(fraction * 360, 359.99);
+      const startDeg = cumulativeDeg;
+      cumulativeDeg += spanDeg;
+
+      return {
+        category: item.category,
+        total: item.total,
+        color: palette[index % palette.length],
+        percentage: Math.round(fraction * 100),
+        path: this.buildDonutPath(50, 50, 42, 26, startDeg, cumulativeDeg),
+      };
+    });
+  });
 
   protected readonly monthlyRunRate = computed(() => {
     const today = new Date();
@@ -269,6 +295,24 @@ export class App {
     return 'Cloud activo';
   });
 
+  protected readonly syncModeLabel = computed(() => {
+    switch (this.settings().syncMode) {
+      case 'firebase':
+        return 'Firestore';
+      case 'sheet':
+        return 'Sheets';
+      default:
+        return 'Local';
+    }
+  });
+
+  protected readonly automationItems = computed(() => [
+    { label: 'Cloud', value: this.cloudSummary() },
+    { label: 'Gmail', value: this.automationStatus() },
+    { label: 'Sync', value: this.syncModeLabel() },
+    { label: 'UID', value: this.firebaseUserId() || 'Pendiente' },
+  ]);
+
   constructor() {
     this.consumeSharedCapture();
 
@@ -330,6 +374,16 @@ export class App {
         }
       }
     });
+
+    effect(() => {
+      if (typeof document === 'undefined') {
+        return;
+      }
+
+      const theme = this.currentTheme();
+      document.documentElement.dataset['theme'] = theme;
+      document.documentElement.style.colorScheme = theme;
+    });
   }
 
   protected setAuthMode(mode: 'signin' | 'register'): void {
@@ -387,6 +441,10 @@ export class App {
     this.captchaInput.set('');
   }
 
+  protected setTheme(theme: ThemePreference): void {
+    this.store.updateProfile({ theme });
+  }
+
   protected setActiveView(view: WorkspaceView): void {
     this.activeView.set(view);
     this.store.updateProfile({ preferredView: view });
@@ -395,11 +453,7 @@ export class App {
   protected submitTransaction(): void {
     this.store.addTransaction(this.form());
     this.form.set(this.store.createDraft());
-    this.captureFeedback.set(
-      this.settings().syncMode === 'firebase' && this.hasCloudAccess()
-        ? 'Movimiento guardado.'
-        : 'Movimiento guardado en local.',
-    );
+    this.captureFeedback.set('');
   }
 
   protected parseCapture(): void {
@@ -428,7 +482,7 @@ export class App {
       source: parsed.source,
       rawText: parsed.rawText,
     });
-    this.captureFeedback.set('Texto reconocido.');
+    this.captureFeedback.set('');
   }
 
   protected async syncNow(): Promise<void> {
@@ -471,7 +525,7 @@ export class App {
 
     this.store.addSubscription(draft);
     this.subscriptionForm.set(this.store.createSubscriptionDraft());
-    this.subscriptionFeedback.set('Suscripcion guardada.');
+    this.subscriptionFeedback.set('');
   }
 
   protected removeSubscription(id: string): void {
@@ -515,7 +569,7 @@ export class App {
     }
 
     this.onboardingStayOpen.set(true);
-    this.profileMessage.set('Datos guardados. Cuando quieras, entra al tablero.');
+    this.profileMessage.set('');
   }
 
   protected enterWorkspaceAfterSetup(): void {
@@ -545,7 +599,7 @@ export class App {
       onboardingCompleted: true,
     });
 
-    this.profileMessage.set('Perfil actualizado.');
+    this.profileMessage.set('');
   }
 
   protected describeSubscriptionCadence(item: SubscriptionItem): string {
@@ -739,6 +793,18 @@ export class App {
       labels,
       total: values.reduce((sum, value) => sum + value, 0),
     };
+  }
+
+  private buildDonutPath(cx: number, cy: number, outerR: number, innerR: number, startDeg: number, endDeg: number): string {
+    const rad = (d: number) => (d * Math.PI) / 180;
+    const pt = (r: number, d: number) => ({ x: cx + r * Math.cos(rad(d)), y: cy + r * Math.sin(rad(d)) });
+    const o1 = pt(outerR, startDeg);
+    const o2 = pt(outerR, endDeg);
+    const i1 = pt(innerR, startDeg);
+    const i2 = pt(innerR, endDeg);
+    const large = endDeg - startDeg > 180 ? 1 : 0;
+    const f = (n: number) => n.toFixed(3);
+    return `M ${f(o1.x)} ${f(o1.y)} A ${outerR} ${outerR} 0 ${large} 1 ${f(o2.x)} ${f(o2.y)} L ${f(i2.x)} ${f(i2.y)} A ${innerR} ${innerR} 0 ${large} 0 ${f(i1.x)} ${f(i1.y)} Z`;
   }
 
   private consumeSharedCapture(): void {
