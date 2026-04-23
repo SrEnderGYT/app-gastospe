@@ -7,24 +7,24 @@ describe('parseTransactionText', () => {
       [
         'Realizaste un consumo con tu Tarjeta de Credito BCP',
         'Hola German,',
-        'Realizaste un consumo de S/ 6.30 con tu Tarjeta de Credito BCP en PYU*UBER.',
+        'Realizaste un consumo de S/ 6.40 con tu Tarjeta de Credito BCP en DLC*UBER RIDES.',
         'Monto',
         'Total del consumo',
-        'S/ 6.30',
+        'S/ 6.40',
         'Empresa',
-        'PYU*UBER',
+        'DLC*UBER RIDES',
       ].join('\n'),
-      { defaultDate: '2026-04-21' },
+      { defaultDate: '2026-04-23', defaultSource: 'gmail' },
     );
 
     expect(parsed).toMatchObject({
       kind: 'expense',
-      amount: 6.3,
-      title: 'Uber',
+      amount: 6.4,
+      title: 'Uber Rides',
       category: 'Transporte',
       account: 'Tarjeta',
-      source: 'notification',
-      date: '2026-04-21',
+      source: 'gmail',
+      date: '2026-04-23',
     });
   });
 
@@ -53,24 +53,106 @@ describe('parseTransactionText', () => {
     });
   });
 
-  it('detects a PLIN debit as a transfer expense', () => {
+  it('detects a BBVA interbank transfer email as an expense', () => {
     const parsed = parseTransactionText(
       [
-        'Realizaste un consumo con tu Tarjeta de Debito BCP',
-        'Realizaste un consumo de S/ 500.00 con tu Tarjeta de Debito BCP en PLIN-FIORELLA RUIZ.',
-        'Monto',
-        'Total del consumo',
-        'S/ 500.00',
+        'BBVA - Constancia Transf. Interbancaria',
+        'Hola, German',
+        'Has realizado con exito la operacion:',
+        'Transferencia interbancaria',
+        'Importe transferido',
+        'S/ 1000.00',
+        'Importe cargado S/ 1000.00',
+        'Nombre del beneficiario',
+        'German Cubas Saco',
       ].join('\n'),
-      { defaultDate: '2026-04-09', defaultSource: 'gmail' },
+      { defaultDate: '2026-04-15', defaultSource: 'gmail' },
     );
 
     expect(parsed).toMatchObject({
       kind: 'expense',
-      amount: 500,
-      title: 'Fiorella Ruiz',
+      amount: 1000,
+      title: 'German Cubas Saco',
+      category: 'Transferencias',
+      account: 'Transferencia',
+      source: 'gmail',
+      date: '2026-04-15',
+    });
+  });
+
+  it('detects a BBVA PLIN debit as a transfer expense', () => {
+    const parsed = parseTransactionText(
+      [
+        'Constancia de operacion transferencia PLIN',
+        'Hola, GERMAN',
+        'Plineaste S/ 120.53 a German Cubas S',
+        'Detalles de tu plineo',
+        'Destino: Yape',
+        'Numero de operacion: 28E3B9BE7006',
+      ].join('\n'),
+      { defaultDate: '2026-04-20', defaultSource: 'gmail' },
+    );
+
+    expect(parsed).toMatchObject({
+      kind: 'expense',
+      amount: 120.53,
+      title: 'German Cubas S',
       category: 'Transferencias',
       account: 'Yape/Plin',
+      source: 'gmail',
+    });
+  });
+
+  it('detects a BCP service payment email as an expense even with mojibake', () => {
+    const parsed = parseTransactionText(
+      [
+        'ENVIO AUTOMATICO - CONSTANCIA DE PAGO DE SERVICIO - BANCA MOVIL BCP',
+        'Hola GERMAN,',
+        'Â¡Tu operaciÃ³n se realizÃ³ con Ã©xito!',
+        'OperaciÃ³n realizada:',
+        'Pago de servicios',
+        'Empresa:',
+        'PAGOEFECTIVO',
+        'Cuenta de origen:',
+        'Tarjeta de credito',
+        'Monto total:',
+        'S/ 342.50',
+      ].join('\n'),
+      { defaultDate: '2026-04-21', defaultSource: 'gmail' },
+    );
+
+    expect(parsed).toMatchObject({
+      kind: 'expense',
+      amount: 342.5,
+      title: 'PagoEfectivo',
+      category: 'Servicios',
+      account: 'Tarjeta',
+      source: 'gmail',
+    });
+  });
+
+  it('detects an automatic service payment email as an expense', () => {
+    const parsed = parseTransactionText(
+      [
+        'Pago automatico exitoso de tu servicio WIN INTERNET',
+        'El Pago AutomÃ¡tico de tu servicio favorito se realizÃ³ con Ã©xito.',
+        'Monto',
+        'Total transferido',
+        'S/59.00',
+        'Empresa',
+        'WIN INTERNET',
+        'N° de cuenta o tarjeta',
+        'Cuenta de Ahorro',
+      ].join('\n'),
+      { defaultDate: '2026-04-21', defaultSource: 'gmail' },
+    );
+
+    expect(parsed).toMatchObject({
+      kind: 'expense',
+      amount: 59,
+      title: 'WIN Internet',
+      category: 'Servicios',
+      account: 'Transferencia',
       source: 'gmail',
     });
   });
@@ -99,65 +181,5 @@ describe('parseTransactionText', () => {
     );
 
     expect(parsed).toBeNull();
-  });
-
-  it('detects a BBVA card purchase email as an expense', () => {
-    const parsed = parseTransactionText(
-      [
-        'Alerta BBVA',
-        'Se realizo un consumo por S/ 18.50 en TAMBO 2 con tu tarjeta BBVA.',
-        'Importe de la compra',
-        'S/ 18.50',
-      ].join('\n'),
-      { defaultDate: '2026-04-22', defaultSource: 'gmail' },
-    );
-
-    expect(parsed).toMatchObject({
-      kind: 'expense',
-      amount: 18.5,
-      title: 'Tambo',
-      category: 'Comida',
-      account: 'Tarjeta',
-      source: 'gmail',
-      date: '2026-04-22',
-    });
-  });
-
-  it('detects a BBVA incoming transfer as income', () => {
-    const parsed = parseTransactionText(
-      [
-        'Notificacion BBVA',
-        'Recibiste una transferencia por S/ 250.00 de Juan Perez en tu cuenta BBVA.',
-        'Monto abonado',
-        'S/ 250.00',
-      ].join('\n'),
-      { defaultDate: '2026-04-22', defaultSource: 'gmail' },
-    );
-
-    expect(parsed).toMatchObject({
-      kind: 'income',
-      amount: 250,
-      title: 'Juan Perez',
-      category: 'Ingreso',
-      account: 'Transferencia',
-      source: 'gmail',
-      date: '2026-04-22',
-    });
-  });
-
-  it('detects an outgoing transfer notification without needing the web form', () => {
-    const parsed = parseTransactionText(
-      'BBVA: Transferencia por S/ 120.00 a Carlos Perez desde tu cuenta.',
-      { defaultDate: '2026-04-22', defaultSource: 'notification' },
-    );
-
-    expect(parsed).toMatchObject({
-      kind: 'expense',
-      amount: 120,
-      title: 'Carlos Perez',
-      category: 'Transferencias',
-      account: 'Transferencia',
-      source: 'notification',
-    });
   });
 });

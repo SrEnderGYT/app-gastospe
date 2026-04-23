@@ -7,6 +7,14 @@ const crypto = require('crypto');
 admin.initializeApp();
 
 const ingestSecret = defineSecret('GASTOSPE_INGEST_SECRET');
+const MAX_AUTOMATION_ITEMS = 50;
+const MAX_TEXT_LENGTH = 12000;
+const MAX_NOTE_LENGTH = 500;
+const UID_PATTERN = /^[A-Za-z0-9_-]{20,128}$/;
+const TRUSTED_GMAIL_SENDERS = [
+  /notificaciones@notificacionesbcp\.com\.pe/i,
+  /procesos@bbva\.com\.pe/i,
+];
 
 // ─── syncTransactions ────────────────────────────────────────────────────────
 
@@ -102,10 +110,9 @@ exports.ingestAutomationTransactions = onRequest(
       return;
     }
 
-    const expectedSecret = ingestSecret.value();
     const receivedSecret = String(request.headers['x-gastospe-secret'] || '').trim();
 
-    if (!expectedSecret || !receivedSecret || receivedSecret !== expectedSecret) {
+    if (!hasValidIngestSecret(receivedSecret)) {
       response.status(401).json({ ok: false, message: 'Invalid ingest secret' });
       return;
     }
@@ -114,8 +121,8 @@ exports.ingestAutomationTransactions = onRequest(
     const uid = typeof payload.uid === 'string' ? payload.uid.trim() : '';
     const transactions = resolveAutomationTransactions(payload);
 
-    if (!uid) {
-      response.status(400).json({ ok: false, message: 'uid is required' });
+    if (!isValidUid(uid)) {
+      response.status(400).json({ ok: false, message: 'uid is required and must be valid' });
       return;
     }
 
@@ -178,10 +185,9 @@ exports.parseGmailMessage = onRequest(
       return;
     }
 
-    const expectedSecret = ingestSecret.value();
     const receivedSecret = String(request.headers['x-gastospe-secret'] || '').trim();
 
-    if (!expectedSecret || !receivedSecret || receivedSecret !== expectedSecret) {
+    if (!hasValidIngestSecret(receivedSecret)) {
       response.status(401).json({ ok: false, message: 'Invalid ingest secret' });
       return;
     }
@@ -191,6 +197,7 @@ exports.parseGmailMessage = onRequest(
     const subject = String(payload.subject || '').trim();
     const body = String(payload.body || payload.text || '').trim();
     const sender = String(payload.sender || '').trim();
+    const messageId = typeof payload.messageId === 'string' ? payload.messageId.trim() : '';
     const date =
       typeof payload.date === 'string' && payload.date.trim()
         ? payload.date.trim()
@@ -201,12 +208,24 @@ exports.parseGmailMessage = onRequest(
       return;
     }
 
-    if (!uid) {
-      response.status(400).json({ ok: false, message: 'uid is required' });
+    if (!isValidUid(uid)) {
+      response.status(400).json({ ok: false, message: 'uid is required and must be valid' });
       return;
     }
 
-    const fullText = normalizeWhitespace([subject, sender, body].filter(Boolean).join('\n'));
+    if ((subject + body).length > MAX_TEXT_LENGTH * 2) {
+      response.status(413).json({ ok: false, message: 'Email body is too large' });
+      return;
+    }
+
+    if (sender && !isTrustedGmailSender(sender)) {
+      response.status(200).json({ ok: true, transaction: null, reason: 'untrusted-sender' });
+      return;
+    }
+
+    const fullText = normalizeWhitespace(
+      repairCommonEncoding([subject, sender, body].filter(Boolean).join('\n')),
+    );
 
     if (shouldIgnoreTransactionText(fullText)) {
       logger.info('Email filtered out', { uid, reason: 'ignored pattern' });
@@ -219,7 +238,7 @@ exports.parseGmailMessage = onRequest(
 
     // 1. Intentar Vertex AI Gemini
     try {
-      transaction = await parseWithVertexAI(fullText, date, subject, uid);
+      transaction = await parseWithVertexAI(fullText, date, subject, messageId);
       if (transaction) {
         parseMethod = 'vertex-ai';
       }
@@ -233,7 +252,7 @@ exports.parseGmailMessage = onRequest(
       if (amount) {
         const kind = inferKind(fullText);
         transaction = {
-          id: buildStableId('gmail', date, fullText),
+          id: messageId ? `gmail-${messageId}` : buildStableId('gmail', date, fullText),
           kind,
           title: inferTitle(fullText, kind),
           amount,
@@ -274,7 +293,7 @@ exports.parseGmailMessage = onRequest(
 
 // ─── Vertex AI parser ─────────────────────────────────────────────────────────
 
-async function parseWithVertexAI(text, date, subject, uid) {
+async function parseWithVertexAI(text, date, subject, messageId) {
   const { VertexAI } = require('@google-cloud/vertexai');
 
   const projectId = process.env.GCLOUD_PROJECT || admin.app().options.projectId;
@@ -327,7 +346,7 @@ Esquema esperado:
   const kind = parsed.kind === 'income' ? 'income' : 'expense';
 
   return {
-    id: buildStableId('ai', date, text),
+    id: messageId ? `gmail-${messageId}` : buildStableId('ai', date, text),
     kind,
     title: beautifyCounterparty(String(parsed.merchant || '')) || (kind === 'income' ? 'Ingreso detectado' : 'Gasto detectado'),
     amount,
@@ -353,6 +372,30 @@ function parsePayload(body) {
   return {};
 }
 
+function hasValidIngestSecret(receivedSecret) {
+  const expectedSecret = ingestSecret.value();
+
+  if (!expectedSecret || !receivedSecret) {
+    return false;
+  }
+
+  const expectedBuffer = Buffer.from(expectedSecret);
+  const receivedBuffer = Buffer.from(receivedSecret);
+
+  return (
+    expectedBuffer.length === receivedBuffer.length &&
+    crypto.timingSafeEqual(expectedBuffer, receivedBuffer)
+  );
+}
+
+function isValidUid(uid) {
+  return UID_PATTERN.test(String(uid || '').trim());
+}
+
+function isTrustedGmailSender(sender) {
+  return TRUSTED_GMAIL_SENDERS.some((pattern) => pattern.test(String(sender || '')));
+}
+
 function buildEndpointInfo({ endpoint, method, auth, body }) {
   return {
     ok: true,
@@ -371,6 +414,7 @@ function validateTransactions(transactions) {
   }
 
   return transactions
+    .slice(0, MAX_AUTOMATION_ITEMS)
     .filter((transaction) => {
       return (
         transaction &&
@@ -382,17 +426,17 @@ function validateTransactions(transactions) {
       );
     })
     .map((transaction) => ({
-      id: transaction.id.trim(),
+      id: transaction.id.trim().slice(0, 120),
       kind: transaction.kind === 'income' ? 'income' : 'expense',
-      title: transaction.title.trim() || 'Movimiento sin titulo',
+      title: sanitizeText(transaction.title, 160) || 'Movimiento sin titulo',
       // Precision fix: round to 2 decimal places to avoid IEEE 754 drift
       amount: Math.round(Number(transaction.amount) * 100) / 100,
-      category: String(transaction.category || 'Otros'),
-      date: String(transaction.date),
-      account: String(transaction.account || 'Otro'),
-      note: String(transaction.note || ''),
+      category: sanitizeText(transaction.category || 'Otros', 60) || 'Otros',
+      date: normalizeDate(transaction.date),
+      account: sanitizeText(transaction.account || 'Otro', 60) || 'Otro',
+      note: sanitizeText(transaction.note || '', MAX_NOTE_LENGTH),
       source: normalizeSource(transaction.source),
-      rawText: String(transaction.rawText || ''),
+      rawText: sanitizeText(transaction.rawText || '', MAX_TEXT_LENGTH),
       createdAt: String(transaction.createdAt || new Date().toISOString()),
       syncStatus: 'synced',
       syncMessage: '',
@@ -423,6 +467,7 @@ function validateAutomationEntries(entries) {
   }
 
   return entries
+    .slice(0, MAX_AUTOMATION_ITEMS)
     .filter((entry) => {
       if (!entry || typeof entry !== 'object') {
         return false;
@@ -438,19 +483,22 @@ function validateAutomationEntries(entries) {
       return Boolean(text.trim());
     })
     .map((entry) => ({
-      id: typeof entry.id === 'string' ? entry.id.trim() : '',
-      text:
+      id: typeof entry.id === 'string' ? entry.id.trim().slice(0, 120) : '',
+      text: sanitizeText(
         typeof entry.text === 'string'
           ? entry.text
           : typeof entry.rawText === 'string'
             ? entry.rawText
             : '',
-      subject: typeof entry.subject === 'string' ? entry.subject.trim() : '',
-      sender: typeof entry.sender === 'string' ? entry.sender.trim() : '',
-      date:
+        MAX_TEXT_LENGTH,
+      ),
+      subject: sanitizeText(typeof entry.subject === 'string' ? entry.subject.trim() : '', 200),
+      sender: sanitizeText(typeof entry.sender === 'string' ? entry.sender.trim() : '', 200),
+      date: normalizeDate(
         typeof entry.date === 'string' && entry.date.trim()
           ? entry.date.trim()
           : new Date().toISOString().slice(0, 10),
+      ),
       createdAt:
         typeof entry.createdAt === 'string' && entry.createdAt.trim()
           ? entry.createdAt.trim()
@@ -604,12 +652,12 @@ function inferAccount(text) {
     return 'Yape/Plin';
   }
 
-  if (/tarjeta|visa|mastercard|debito|credito|amex/i.test(text)) {
-    return 'Tarjeta';
+  if (/transferencia|deposito|abono|cuenta ahorro|cuenta de ahorro|cuenta corriente/i.test(text)) {
+    return 'Transferencia';
   }
 
-  if (/transferencia|bcp|interbank|bbva|scotiabank|deposito|abono|cuenta ahorro|cuenta corriente/i.test(text)) {
-    return 'Transferencia';
+  if (/tarjeta|visa|mastercard|debito|credito|amex/i.test(text)) {
+    return 'Tarjeta';
   }
 
   return 'Otro';
@@ -776,4 +824,28 @@ function normalizeWhitespace(rawText) {
     .replace(/\r/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
+
+function sanitizeText(value, maxLength) {
+  return String(value || '').slice(0, maxLength).trim();
+}
+
+function normalizeDate(value) {
+  const normalized = String(value || '').trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(normalized)
+    ? normalized
+    : new Date().toISOString().slice(0, 10);
+}
+
+function repairCommonEncoding(rawText) {
+  return String(rawText || '')
+    .replace(/Â¡/g, '¡')
+    .replace(/Â¿/g, '¿')
+    .replace(/Â/g, '')
+    .replace(/Ã¡/g, 'á')
+    .replace(/Ã©/g, 'é')
+    .replace(/Ã­/g, 'í')
+    .replace(/Ã³/g, 'ó')
+    .replace(/Ãº/g, 'ú')
+    .replace(/Ã±/g, 'ñ');
 }
