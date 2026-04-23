@@ -16,6 +16,12 @@ const IGNORABLE_PATTERNS = [
   /\bpromo\b/i,
   /\bcyber\b/i,
   /\bdescuento\b/i,
+  /your order has been registered/i,
+  /waiting for the payment confirmation/i,
+  /lista de deseados/i,
+  /esta en oferta/i,
+  /rebajas de steam/i,
+  /games? que quieres estan de oferta/i,
 ];
 
 const EXPENSE_PATTERNS = [
@@ -38,6 +44,11 @@ const EXPENSE_PATTERNS = [
   /importe cargado/i,
   /total transferido/i,
   /pago automatico exitoso/i,
+  /payment of/i,
+  /payment has been successfully sent/i,
+  /gracias por comprar en steam/i,
+  /recente transaccion en steam/i,
+  /total de esta transaccion/i,
 ];
 
 const INCOME_PATTERNS = [
@@ -69,8 +80,12 @@ const PERSON_TO_PERSON_PATTERNS = [
 const KNOWN_GMAIL_PATTERNS = [
   /notificaciones@notificacionesbcp\.com\.pe/i,
   /procesos@bbva\.com\.pe/i,
+  /no-reply@pagseguro\.com/i,
+  /noreply@steampowered\.com/i,
   /servicio de notificaciones bcp/i,
   /\bbbva\b/i,
+  /\bpagseguro\b/i,
+  /\bsteam\b/i,
 ];
 
 type ParserOptions = {
@@ -132,10 +147,18 @@ function inferAccount(rawText: string): string {
   }
 
   if (
-    /tarjeta|visa|mastercard|debito|credito|amex/i.test(rawText) &&
+    /(tarjeta|visa|mastercard|amex|credito)/i.test(rawText) &&
     !/cuenta de ahorro|ahorros|cuenta corriente|cuenta sueldo|cuenta digital/i.test(rawText)
   ) {
     return 'Tarjeta';
+  }
+
+  if (/debito/i.test(rawText) && !/online debit/i.test(rawText)) {
+    return 'Tarjeta';
+  }
+
+  if (/pagoefectivo|pagseguro|online debit|pago efectivo/i.test(rawText)) {
+    return 'Efectivo';
   }
 
   if (
@@ -152,6 +175,14 @@ function inferAccount(rawText: string): string {
 function inferCategory(rawText: string, kind: TransactionKind): string {
   if (kind === 'income') {
     return 'Ingreso';
+  }
+
+  if (
+    /(steam|valve|boacompra|boa compra|leaf it alone|gracias por comprar en steam|your payment of|payment has been successfully sent)/i.test(
+      rawText,
+    )
+  ) {
+    return 'Compras';
   }
 
   if (
@@ -199,6 +230,10 @@ function inferCategory(rawText: string, kind: TransactionKind): string {
     return 'Compras';
   }
 
+  if (/(steam|valve|boacompra|boa compra|pagseguro|videojuego|game purchase|juego)/i.test(rawText)) {
+    return 'Compras';
+  }
+
   if (/(alquiler|mantenimiento|condominio|municipalidad|predial|hipoteca)/i.test(rawText)) {
     return 'Casa';
   }
@@ -229,6 +264,16 @@ function inferTitle(
 
   if (paymentServiceFromSubject?.[1]) {
     return beautifyCounterparty(paymentServiceFromSubject[1]);
+  }
+
+  const orderMatch =
+    preparedText.match(/order:\s*(?:•\s*)?([A-Za-z0-9'!,: .&-]{2,120})/i) ||
+    preparedText.match(
+      /gracias por tu reciente transaccion en steam[\s\S]{0,260}?\n\s*([A-Za-z0-9'!,: .&-]{2,120})\s*\n\s*subtotal\s*\(/i,
+    );
+
+  if (orderMatch?.[1]) {
+    return beautifyCounterparty(orderMatch[1]);
   }
 
   const companyMatch =
@@ -291,6 +336,9 @@ function extractAmount(preparedText: string, rawText: string): number | null {
     /consumo por\s+(?:s\/|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
     /recibiste un yapeo de\s+(?:s\/|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
     /plineaste\s+(?:s\/|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
+    /payment of\s+(?:s\/\.?|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
+    /total de esta transaccion\s*:?\s*(?:s\/\.?|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
+    /total\s*:?\s*(?:s\/\.?|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
   ];
 
   for (const pattern of prioritizedPatterns) {
@@ -309,6 +357,8 @@ function extractAmount(preparedText: string, rawText: string): number | null {
     'Importe transferido',
     'Importe cargado',
     'Total transferido',
+    'Total',
+    'Total de esta transaccion',
   ]);
 
   if (labeledAmount) {
@@ -386,6 +436,9 @@ function beautifyCounterparty(rawValue: string): string {
     netflix: 'Netflix',
     spotify: 'Spotify',
     pagoefectivo: 'PagoEfectivo',
+    pagseguro: 'PagSeguro',
+    steam: 'Steam',
+    'leaf it alone': 'Leaf It Alone',
     'win internet': 'WIN Internet',
     contabo: 'Contabo',
   };

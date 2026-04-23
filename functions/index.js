@@ -14,6 +14,8 @@ const UID_PATTERN = /^[A-Za-z0-9_-]{20,128}$/;
 const TRUSTED_GMAIL_SENDERS = [
   /notificaciones@notificacionesbcp\.com\.pe/i,
   /procesos@bbva\.com\.pe/i,
+  /no-reply@pagseguro\.com/i,
+  /noreply@steampowered\.com/i,
 ];
 
 // ─── syncTransactions ────────────────────────────────────────────────────────
@@ -90,6 +92,7 @@ exports.ingestAutomationTransactions = onRequest(
   {
     cors: true,
     region: 'us-central1',
+    invoker: 'public',
     secrets: [ingestSecret],
   },
   async (request, response) => {
@@ -164,6 +167,7 @@ exports.parseGmailMessage = onRequest(
   {
     cors: true,
     region: 'us-central1',
+    invoker: 'public',
     secrets: [ingestSecret],
     timeoutSeconds: 30,
   },
@@ -636,6 +640,12 @@ function shouldIgnoreTransactionText(text) {
     /informacion de tu credito/i,
     /actualiza.*datos/i,
     /nueva oferta/i,
+    /your order has been registered/i,
+    /waiting for the payment confirmation/i,
+    /lista de deseados/i,
+    /esta en oferta/i,
+    /rebajas de steam/i,
+    /juegos? que quieres estan de oferta/i,
   ].some((pattern) => pattern.test(text));
 }
 
@@ -652,12 +662,20 @@ function inferAccount(text) {
     return 'Yape/Plin';
   }
 
-  if (/transferencia|deposito|abono|cuenta ahorro|cuenta de ahorro|cuenta corriente/i.test(text)) {
-    return 'Transferencia';
+  if (/(tarjeta|visa|mastercard|amex|credito)/i.test(text)) {
+    return 'Tarjeta';
   }
 
-  if (/tarjeta|visa|mastercard|debito|credito|amex/i.test(text)) {
+  if (/debito/i.test(text) && !/online debit/i.test(text)) {
     return 'Tarjeta';
+  }
+
+  if (/pagoefectivo|pagseguro|online debit|pago efectivo/i.test(text)) {
+    return 'Efectivo';
+  }
+
+  if (/transferencia|deposito|abono|cuenta ahorro|cuenta de ahorro|cuenta corriente/i.test(text)) {
+    return 'Transferencia';
   }
 
   return 'Otro';
@@ -666,6 +684,10 @@ function inferAccount(text) {
 function inferCategory(text, kind) {
   if (kind === 'income') {
     return 'Ingreso';
+  }
+
+  if (/(steam|valve|boacompra|boa compra|leaf it alone|gracias por comprar en steam|your payment of|payment has been successfully sent)/i.test(text)) {
+    return 'Compras';
   }
 
   if (/plin|yape|yapeo a celular|transferiste|transferencia enviada|enviaste|transferencia/i.test(text)) {
@@ -692,6 +714,10 @@ function inferCategory(text, kind) {
     return 'Suscripciones';
   }
 
+  if (/(steam|valve|boacompra|boa compra|pagseguro|videojuego|game purchase|juego)/i.test(text)) {
+    return 'Compras';
+  }
+
   if (/(ripley|saga|zara|h&m|falabella|oechsle|compra|tienda|mall|ropa|calzado)/i.test(text)) {
     return 'Compras';
   }
@@ -704,6 +730,16 @@ function inferCategory(text, kind) {
 }
 
 function inferTitle(text, kind) {
+  const orderMatch =
+    text.match(/order:\s*(?:•\s*)?([A-Za-z0-9'!,: .&-]{2,120})/i) ||
+    text.match(
+      /gracias por tu reciente transaccion en steam[\s\S]{0,260}?\n\s*([A-Za-z0-9'!,: .&-]{2,120})\s*\n\s*subtotal\s*\(/i,
+    );
+
+  if (orderMatch && orderMatch[1]) {
+    return beautifyCounterparty(orderMatch[1]);
+  }
+
   const companyMatch =
     text.match(/empresa\s+([A-Za-z0-9* .&-]{2,60})/i) ||
     text.match(/comercio\s+([A-Za-z0-9* .&-]{2,60})/i) ||
@@ -748,6 +784,9 @@ function extractAmount(text) {
     /monto\s*:\s*(?:s\/|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
     /importe\s*:\s*(?:s\/|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
     /por\s+(?:s\/|\$)\s?(\d+(?:[.,]\d{1,2})?)/i,
+    /payment of\s+(?:s\/\.?|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
+    /total de esta transaccion\s*:?\s*(?:s\/\.?|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
+    /total\s*:?\s*(?:s\/\.?|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
   ];
 
   for (const pattern of prioritizedPatterns) {
@@ -796,6 +835,10 @@ function beautifyCounterparty(rawValue) {
     'plaza vea': 'Plaza Vea',
     netflix: 'Netflix',
     spotify: 'Spotify',
+    pagoefectivo: 'PagoEfectivo',
+    pagseguro: 'PagSeguro',
+    steam: 'Steam',
+    'leaf it alone': 'Leaf It Alone',
   };
 
   const lower = cleaned.toLowerCase();

@@ -11,13 +11,15 @@ const CONFIG = {
   processedStoreKey: 'GASTOSPE_PROCESSED_MESSAGE_IDS',
   failedStoreKey: 'GASTOSPE_FAILED_MESSAGE_IDS',
   gmailQuery:
-    'in:anywhere newer_than:45d (from:notificaciones@notificacionesbcp.com.pe OR from:procesos@bbva.com.pe) -category:promotions -category:social',
+    'in:anywhere newer_than:45d (from:notificaciones@notificacionesbcp.com.pe OR from:procesos@bbva.com.pe OR from:no-reply@pagseguro.com OR from:noreply@steampowered.com)',
   maxThreads: 120,
   maxProcessedIds: 1200,
   maxFailures: 300,
   allowedSenders: [
     'notificaciones@notificacionesbcp.com.pe',
     'procesos@bbva.com.pe',
+    'no-reply@pagseguro.com',
+    'noreply@steampowered.com',
   ],
 };
 
@@ -226,10 +228,41 @@ function runParserSelfTest() {
       },
     },
     {
+      name: 'pagseguro_completed',
+      text:
+        'Updated Status #18A31547-9FCB-4957-A539-6092B2357415 - Completed\n' +
+        'Your payment of\nS/. 14,50\nwas authorized.\nOrder:\nLeaf it Alone\nPayment Method:\nOnline Debit\nPagoEfectivo\nTotal: S/. 14,50',
+      expected: {
+        kind: 'expense',
+        title: 'Leaf It Alone',
+        amount: 14.5,
+      },
+    },
+    {
+      name: 'steam_receipt',
+      text:
+        '¡Gracias por comprar en Steam!\n' +
+        'Gracias por tu reciente transaccion en Steam.\n' +
+        'Leaf it Alone\nSubtotal (IVA no incluido): S/.12.29\nTotal:\nS/.14.50\nMetodo de pago:\nPagoEfectivo',
+      expected: {
+        kind: 'expense',
+        title: 'Leaf It Alone',
+        amount: 14.5,
+      },
+    },
+    {
       name: 'ignored_rejected_purchase',
       text:
         'Se rechazo tu compra por e-commerce no permitido\n' +
         'Importe de compra\nS/ 200.00',
+      expectedIgnored: true,
+    },
+    {
+      name: 'ignored_pagseguro_pending_order',
+      text:
+        'New Order 18A31547-9FCB-4957-A539-6092B2357415\n' +
+        'Your order has been registered!\n' +
+        'We are waiting for the payment confirmation to start the processing.',
       expectedIgnored: true,
     },
   ];
@@ -257,6 +290,22 @@ function createFastTrigger() {
   deleteProjectTriggers();
   ScriptApp.newTrigger('ingestBcpFinanceEmails').timeBased().everyMinutes(5).create();
   Logger.log('Trigger creado para revisar Gmail cada 5 minutos.');
+}
+
+function installOrRepairAutomation() {
+  validateConfig_();
+  getOrCreateLabel_(CONFIG.processedLabel);
+  getOrCreateLabel_(CONFIG.reviewLabel);
+  createFastTrigger();
+  ingestBcpFinanceEmails();
+  Logger.log('Automatizacion reparada: trigger creado, labels listas e ingesta inicial ejecutada.');
+}
+
+function backfillLast45Days() {
+  validateConfig_();
+  resetProcessedMessages_();
+  ingestBcpFinanceEmails();
+  Logger.log('Backfill de los ultimos 45 dias ejecutado.');
 }
 
 function createHourlyTrigger() {
@@ -565,6 +614,12 @@ function shouldIgnoreTransactionText_(text) {
     /\bpromo\b/i,
     /\bcyber\b/i,
     /\bdescuento\b/i,
+    /your order has been registered/i,
+    /waiting for the payment confirmation/i,
+    /lista de deseados/i,
+    /esta en oferta/i,
+    /rebajas de steam/i,
+    /juegos? que quieres estan de oferta/i,
   ].some(function (pattern) {
     return pattern.test(text);
   });
@@ -572,7 +627,7 @@ function shouldIgnoreTransactionText_(text) {
 
 function inferKind_(text) {
   if (
-    /realizaste un consumo|total del consumo|importe de la compra|consumo tarjeta de credito|plineaste|transferencia interbancaria|transferencia a cuentas propias|transf\. a ctas\. propias|transf\. interbancaria|transf\. a ctas\. terceros|transferir a terceros bbva|pago automatico|pago de servicios|pago a tu tarjeta|monto pagado|importe transferido|importe cargado|total transferido/i.test(
+    /realizaste un consumo|total del consumo|importe de la compra|consumo tarjeta de credito|plineaste|transferencia interbancaria|transferencia a cuentas propias|transf\. a ctas\. propias|transf\. interbancaria|transf\. a ctas\. terceros|transferir a terceros bbva|pago automatico|pago de servicios|pago a tu tarjeta|monto pagado|importe transferido|importe cargado|total transferido|payment of|payment has been successfully sent|gracias por comprar en steam|total de esta transaccion/i.test(
       text,
     )
   ) {
@@ -592,15 +647,26 @@ function inferAccount_(text) {
   }
 
   if (
+    /(tarjeta|visa|mastercard|amex|credito)/i.test(text) &&
+    !/cuenta de ahorro|ahorros|cuenta corriente|cuenta sueldo|cuenta digital/i.test(text)
+  ) {
+    return 'Tarjeta';
+  }
+
+  if (/debito/i.test(text) && !/online debit/i.test(text)) {
+    return 'Tarjeta';
+  }
+
+  if (/pagoefectivo|pagseguro|online debit|pago efectivo/i.test(text)) {
+    return 'Efectivo';
+  }
+
+  if (
     /transferencia|cuenta de origen|cuenta de destino|cuenta sueldo|cuenta digital|cuenta de ahorro|ahorros|importe cargado|importe transferido/i.test(
       text,
     )
   ) {
     return 'Transferencia';
-  }
-
-  if (/tarjeta|visa|mastercard|debito|credito|amex/i.test(text)) {
-    return 'Tarjeta';
   }
 
   return 'Otro';
@@ -609,6 +675,14 @@ function inferAccount_(text) {
 function inferCategory_(text) {
   if (inferKind_(text) === 'income') {
     return 'Ingreso';
+  }
+
+  if (
+    /(steam|valve|boacompra|boa compra|leaf it alone|gracias por comprar en steam|your payment of|payment has been successfully sent)/i.test(
+      text,
+    )
+  ) {
+    return 'Compras';
   }
 
   if (
@@ -651,6 +725,10 @@ function inferCategory_(text) {
     return 'Suscripciones';
   }
 
+  if (/(steam|valve|boacompra|boa compra|pagseguro|videojuego|game purchase|juego)/i.test(text)) {
+    return 'Compras';
+  }
+
   return 'Otros';
 }
 
@@ -661,6 +739,16 @@ function inferTitle_(preparedText, searchableText) {
 
   if (paymentServiceFromSubject && paymentServiceFromSubject[1]) {
     return beautifyCounterparty_(paymentServiceFromSubject[1]);
+  }
+
+  const orderMatch =
+    preparedText.match(/order:\s*(?:•\s*)?([A-Za-z0-9'!,: .&-]{2,120})/i) ||
+    preparedText.match(
+      /gracias por tu reciente transaccion en steam[\s\S]{0,260}?\n\s*([A-Za-z0-9'!,: .&-]{2,120})\s*\n\s*subtotal\s*\(/i,
+    );
+
+  if (orderMatch && orderMatch[1]) {
+    return beautifyCounterparty_(orderMatch[1]);
   }
 
   const companyMatch =
@@ -717,6 +805,9 @@ function extractAmount_(preparedText, searchableText) {
     /realizaste un consumo de\s+(?:s\/|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
     /recibiste un yapeo de\s+(?:s\/|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
     /plineaste\s+(?:s\/|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
+    /payment of\s+(?:s\/\.?|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
+    /total de esta transaccion\s*:?\s*(?:s\/\.?|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
+    /total\s*:?\s*(?:s\/\.?|\$|pen|usd)?\s?(\d+(?:[.,]\d{1,2})?)/i,
   ];
 
   for (let index = 0; index < prioritizedPatterns.length; index += 1) {
@@ -735,6 +826,8 @@ function extractAmount_(preparedText, searchableText) {
     'Importe transferido',
     'Importe cargado',
     'Total transferido',
+    'Total',
+    'Total de esta transaccion',
   ]);
 
   if (labeledAmount) {
@@ -806,6 +899,9 @@ function beautifyCounterparty_(rawValue) {
     rappi: 'Rappi',
     'tambo 2': 'Tambo',
     pagoefectivo: 'PagoEfectivo',
+    pagseguro: 'PagSeguro',
+    steam: 'Steam',
+    'leaf it alone': 'Leaf It Alone',
     'win internet': 'WIN Internet',
     contabo: 'Contabo',
   };

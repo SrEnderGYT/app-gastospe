@@ -157,6 +157,60 @@ describe('parseTransactionText', () => {
     });
   });
 
+  it('detects a PagSeguro completed payment email as an expense', () => {
+    const parsed = parseTransactionText(
+      [
+        'Updated Status #18A31547-9FCB-4957-A539-6092B2357415 - Completed',
+        'Hello !',
+        'Your payment of',
+        'S/. 14,50',
+        'was authorized.',
+        'Order:',
+        'Leaf it Alone',
+        'Payment Method:',
+        'Online Debit',
+        'PagoEfectivo',
+        'Total: S/. 14,50',
+      ].join('\n'),
+      { defaultDate: '2026-04-23', defaultSource: 'gmail' },
+    );
+
+    expect(parsed).toMatchObject({
+      kind: 'expense',
+      amount: 14.5,
+      title: 'Leaf It Alone',
+      category: 'Compras',
+      account: 'Efectivo',
+      source: 'gmail',
+    });
+  });
+
+  it('detects a Steam receipt email as an expense', () => {
+    const parsed = parseTransactionText(
+      [
+        '¡Gracias por comprar en Steam!',
+        'Hola, srendergyt:',
+        'Gracias por tu reciente transaccion en Steam.',
+        'Leaf it Alone',
+        'Subtotal (IVA no incluido): S/.12.29',
+        'Total:',
+        'S/.14.50',
+        'Metodo de pago:',
+        'PagoEfectivo',
+      ].join('\n'),
+      { defaultDate: '2026-04-23', defaultSource: 'gmail' },
+    );
+
+    expect(parsed).toMatchObject({
+      kind: 'expense',
+      amount: 14.5,
+      title: 'Leaf It Alone',
+      category: 'Compras',
+      account: 'Efectivo',
+      source: 'gmail',
+    });
+  });
+
   it('ignores rejected BCP purchases', () => {
     const parsed = parseTransactionText(
       [
@@ -177,6 +231,33 @@ describe('parseTransactionText', () => {
       [
         'Constancia de Configuracion de Tarjeta en Banca Movil BCP',
         'Realizaste una configuracion para tu Tarjeta de Credito Visa Infinite Sapphire.',
+      ].join('\n'),
+    );
+
+    expect(parsed).toBeNull();
+  });
+
+  it('ignores Steam wishlist offer emails', () => {
+    const parsed = parseTransactionText(
+      [
+        '¡Cyberpunk 2077, de tu lista de deseados de Steam, esta en oferta!',
+        'Steam',
+        '¡ALGUNOS JUEGOS QUE QUIERES ESTAN DE OFERTA!',
+        'Cyberpunk 2077 -65%',
+        'S/.199.00',
+        'S/.69.65',
+      ].join('\n'),
+    );
+
+    expect(parsed).toBeNull();
+  });
+
+  it('ignores PagSeguro pending order emails', () => {
+    const parsed = parseTransactionText(
+      [
+        'New Order 18A31547-9FCB-4957-A539-6092B2357415',
+        'Your order has been registered!',
+        'We are waiting for the payment confirmation to start the processing.',
       ].join('\n'),
     );
 
