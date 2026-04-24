@@ -211,6 +211,30 @@ describe('parseTransactionText', () => {
     });
   });
 
+  it('detects an Uber receipt email as a transport expense', () => {
+    const parsed = parseTransactionText(
+      [
+        '[Personal] Tu viaje Uber del jueves por la tarde',
+        'Gracias por usar Uber, German',
+        'Esperamos que hayas disfrutado tu viaje de esta tarde.',
+        'Total PEN 5.70',
+        'Tarifa del viaje PEN 6.20',
+        'Pagos',
+        'Visa ••••8828 (ENDER) PEN 5.70',
+      ].join('\n'),
+      { defaultDate: '2026-04-23', defaultSource: 'gmail' },
+    );
+
+    expect(parsed).toMatchObject({
+      kind: 'expense',
+      amount: 5.7,
+      title: 'Uber',
+      category: 'Transporte',
+      account: 'Tarjeta',
+      source: 'gmail',
+    });
+  });
+
   it('ignores rejected BCP purchases', () => {
     const parsed = parseTransactionText(
       [

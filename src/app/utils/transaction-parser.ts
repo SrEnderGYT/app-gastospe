@@ -49,6 +49,10 @@ const EXPENSE_PATTERNS = [
   /gracias por comprar en steam/i,
   /recente transaccion en steam/i,
   /total de esta transaccion/i,
+  /gracias por usar uber/i,
+  /\[personal\]\s*tu viaje/i,
+  /tarifa del viaje/i,
+  /pagos\s+visa/i,
 ];
 
 const INCOME_PATTERNS = [
@@ -82,10 +86,12 @@ const KNOWN_GMAIL_PATTERNS = [
   /procesos@bbva\.com\.pe/i,
   /no-reply@pagseguro\.com/i,
   /noreply@steampowered\.com/i,
+  /noreply@uber\.com/i,
   /servicio de notificaciones bcp/i,
   /\bbbva\b/i,
   /\bpagseguro\b/i,
   /\bsteam\b/i,
+  /\buber\b/i,
 ];
 
 type ParserOptions = {
@@ -146,6 +152,10 @@ function inferAccount(rawText: string): string {
     return 'Yape/Plin';
   }
 
+  if (/visa\s*[*•.]+|pagos?\s+visa|recibos de uber|gracias por usar uber/i.test(rawText)) {
+    return 'Tarjeta';
+  }
+
   if (
     /(tarjeta|visa|mastercard|amex|credito)/i.test(rawText) &&
     !/cuenta de ahorro|ahorros|cuenta corriente|cuenta sueldo|cuenta digital/i.test(rawText)
@@ -183,6 +193,10 @@ function inferCategory(rawText: string, kind: TransactionKind): string {
     )
   ) {
     return 'Compras';
+  }
+
+  if (/gracias por usar uber|recibos de uber|\[personal\]\s*tu viaje/i.test(rawText)) {
+    return 'Transporte';
   }
 
   if (
@@ -264,6 +278,10 @@ function inferTitle(
 
   if (paymentServiceFromSubject?.[1]) {
     return beautifyCounterparty(paymentServiceFromSubject[1]);
+  }
+
+  if (/gracias por usar uber|recibos de uber|\[personal\]\s*tu viaje/i.test(rawText)) {
+    return 'Uber';
   }
 
   const orderMatch =

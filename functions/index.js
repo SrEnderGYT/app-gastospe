@@ -16,6 +16,7 @@ const TRUSTED_GMAIL_SENDERS = [
   /procesos@bbva\.com\.pe/i,
   /no-reply@pagseguro\.com/i,
   /noreply@steampowered\.com/i,
+  /noreply@uber\.com/i,
 ];
 
 // ─── syncTransactions ────────────────────────────────────────────────────────
@@ -662,6 +663,10 @@ function inferAccount(text) {
     return 'Yape/Plin';
   }
 
+  if (/visa\s*[*•.]+|pagos?\s+visa|recibos de uber|gracias por usar uber/i.test(text)) {
+    return 'Tarjeta';
+  }
+
   if (/(tarjeta|visa|mastercard|amex|credito)/i.test(text)) {
     return 'Tarjeta';
   }
@@ -730,6 +735,10 @@ function inferCategory(text, kind) {
 }
 
 function inferTitle(text, kind) {
+  if (/gracias por usar uber|recibos de uber|\[personal\]\s*tu viaje/i.test(text)) {
+    return 'Uber';
+  }
+
   const orderMatch =
     text.match(/order:\s*(?:•\s*)?([A-Za-z0-9'!,: .&-]{2,120})/i) ||
     text.match(

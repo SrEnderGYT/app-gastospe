@@ -11,7 +11,7 @@ const CONFIG = {
   processedStoreKey: 'GASTOSPE_PROCESSED_MESSAGE_IDS',
   failedStoreKey: 'GASTOSPE_FAILED_MESSAGE_IDS',
   gmailQuery:
-    'in:anywhere newer_than:45d (from:notificaciones@notificacionesbcp.com.pe OR from:procesos@bbva.com.pe OR from:no-reply@pagseguro.com OR from:noreply@steampowered.com)',
+    'in:anywhere newer_than:45d (from:notificaciones@notificacionesbcp.com.pe OR from:procesos@bbva.com.pe OR from:no-reply@pagseguro.com OR from:noreply@steampowered.com OR from:noreply@uber.com)',
   maxThreads: 120,
   maxProcessedIds: 1200,
   maxFailures: 300,
@@ -20,6 +20,7 @@ const CONFIG = {
     'procesos@bbva.com.pe',
     'no-reply@pagseguro.com',
     'noreply@steampowered.com',
+    'noreply@uber.com',
   ],
 };
 
@@ -248,6 +249,18 @@ function runParserSelfTest() {
         kind: 'expense',
         title: 'Leaf It Alone',
         amount: 14.5,
+      },
+    },
+    {
+      name: 'uber_receipt',
+      text:
+        '[Personal] Tu viaje Uber del jueves por la tarde\n' +
+        'Gracias por usar Uber, German\n' +
+        'Total PEN 5.70\nTarifa del viaje PEN 6.20\nPagos\nVisa ••••8828 (ENDER) PEN 5.70',
+      expected: {
+        kind: 'expense',
+        title: 'Uber',
+        amount: 5.7,
       },
     },
     {
@@ -634,6 +647,10 @@ function inferKind_(text) {
     return 'expense';
   }
 
+  if (/gracias por usar uber|\[personal\]\s*tu viaje|tarifa del viaje|pagos\s+visa/i.test(text)) {
+    return 'expense';
+  }
+
   return /recibiste un yapeo|monto recibido|monto abonado|recibiste una transferencia|transferencia recibida|te depositaron|te abonaron|hemos abonado|abono en cuenta|reembolso|cashback/i.test(
     text,
   )
@@ -644,6 +661,10 @@ function inferKind_(text) {
 function inferAccount_(text) {
   if (/yape|plin|plineaste|yapeo/i.test(text)) {
     return 'Yape/Plin';
+  }
+
+  if (/visa\s*[*•.]+|pagos?\s+visa|recibos de uber|gracias por usar uber/i.test(text)) {
+    return 'Tarjeta';
   }
 
   if (
@@ -683,6 +704,10 @@ function inferCategory_(text) {
     )
   ) {
     return 'Compras';
+  }
+
+  if (/gracias por usar uber|recibos de uber|\[personal\]\s*tu viaje/i.test(text)) {
+    return 'Transporte';
   }
 
   if (
@@ -739,6 +764,10 @@ function inferTitle_(preparedText, searchableText) {
 
   if (paymentServiceFromSubject && paymentServiceFromSubject[1]) {
     return beautifyCounterparty_(paymentServiceFromSubject[1]);
+  }
+
+  if (/gracias por usar uber|recibos de uber|\[personal\]\s*tu viaje/i.test(searchableText)) {
+    return 'Uber';
   }
 
   const orderMatch =
